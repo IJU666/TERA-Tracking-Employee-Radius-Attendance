@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'dart:math' as math;
 
 void main() {
   runApp(const MyApp());
@@ -13,359 +11,208 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Audio Player',
+      title: 'Anggota Kelompok',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFF0B0B0F),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF1ED760),
-          secondary: Color(0xFF7C5CFF),
-          surface: Color(0xFF15151B),
-        ),
-        fontFamily: 'Roboto',
-      ),
-      home: const AudioPlayerScreen(),
+      theme: ThemeData(useMaterial3: true, fontFamily: 'sans-serif'),
+      home: const GroupMembersPage(),
     );
   }
 }
 
-class Song {
-  final String title;
-  final String artist;
-  final String url;
-  final List<Color> gradient;
-  const Song({
-    required this.title,
-    required this.artist,
-    required this.url,
-    required this.gradient,
+// ============================================================
+// DATA ANGGOTA — ISI MANUAL DI SINI
+// ============================================================
+
+class Member {
+  final String name; // Nama lengkap
+  final String nim; // NIM / ID anggota
+  final String role; // Peran dalam kelompok (contoh: Ketua, Anggota)
+  final String quote; // Kata-kata / motto singkat
+  final Color cardColor; // Warna aksen kartu
+  final IconData icon; // Ikon representatif
+
+  const Member({
+    required this.name,
+    required this.nim,
+    required this.role,
+    required this.quote,
+    required this.cardColor,
+    required this.icon,
   });
 }
 
-class AudioPlayerScreen extends StatefulWidget {
-  const AudioPlayerScreen({super.key});
+final List<Member> members = [
+  // ── ANGGOTA 1 ──────────────────────────────────────────
+  Member(
+    name: 'Nawa ', // TODO: ganti nama
+    nim: 'NIM / ID 1', // TODO: ganti NIM
+    role: 'Ketua', // TODO: ganti peran
+    quote: '"Tulis motto di sini"', // TODO: ganti quote
+    cardColor: const Color(0xFF6C63FF),
+    icon: Icons.person,
+  ),
+
+  // ── ANGGOTA 2 ──────────────────────────────────────────
+  Member(
+    name: 'Nama Anggota 2', // TODO: ganti nama
+    nim: 'NIM / ID 2', // TODO: ganti NIM
+    role: 'Sekretaris', // TODO: ganti peran
+    quote: '"Tulis motto di sini"', // TODO: ganti quote
+    cardColor: const Color(0xFF43BCA8),
+    icon: Icons.person,
+  ),
+
+  // ── ANGGOTA 3 ──────────────────────────────────────────
+  Member(
+    name: 'Fauzi Maulana Akbar', // TODO: ganti nama
+    nim: '230102049', // TODO: ganti NIM
+    role: 'Belakang', // TODO: ganti peran
+    quote: '"Kesana Kemari"', // TODO: ganti quote
+    cardColor: const Color(0xFFFF6B6B),
+    icon: Icons.person,
+  ),
+
+  // ── ANGGOTA 4 ──────────────────────────────────────────
+  Member(
+    name: 'Nama Anggota 4', // TODO: ganti nama
+    nim: 'NIM / ID 4', // TODO: ganti NIM
+    role: 'Anggota', // TODO: ganti peran
+    quote: '"Tulis motto di sini"', // TODO: ganti quote
+    cardColor: const Color(0xFFF7C948),
+    icon: Icons.person,
+  ),
+];
+
+// ============================================================
+// HALAMAN UTAMA
+// ============================================================
+
+class GroupMembersPage extends StatefulWidget {
+  const GroupMembersPage({super.key});
 
   @override
-  State<AudioPlayerScreen> createState() => _AudioPlayerScreenState();
+  State<GroupMembersPage> createState() => _GroupMembersPageState();
 }
 
-enum _PlaybackState { idle, loading, playing, paused, error }
-
-class _AudioPlayerScreenState extends State<AudioPlayerScreen>
-    with SingleTickerProviderStateMixin {
-  late AudioPlayer _audioPlayer;
-
-  final List<Song> songs = const [
-    Song(
-      title: 'Song 1',
-      artist: 'Unknown Artist',
-      url: 'https://gitlab.com/davafath12/test/-/raw/main/song1.mp3',
-      gradient: [Color(0xFFFF5A36), Color(0xFFB3271F)],
-    ),
-    Song(
-      title: 'Song 2',
-      artist: 'Unknown Artist',
-      url: 'https://gitlab.com/davafath12/test/-/raw/main/song2.mp3',
-      gradient: [Color(0xFF2DD4BF), Color(0xFF1565C0)],
-    ),
-    Song(
-      title: 'Song 3',
-      artist: 'Unknown Artist',
-      url: 'https://gitlab.com/davafath12/test/-/raw/main/song3.mp3',
-      gradient: [Color(0xFF7C5CFF), Color(0xFFD6418E)],
-    ),
-  ];
-
-  int? _currentIndex;
-  _PlaybackState _state = _PlaybackState.idle;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
-
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<Duration>? _durationSub;
-  StreamSubscription<PlayerState>? _stateSub;
-  StreamSubscription<void>? _completeSub;
-
-  late AnimationController _spinController;
-
-  Song? get _currentSong =>
-      _currentIndex == null ? null : songs[_currentIndex!];
+class _GroupMembersPageState extends State<GroupMembersPage>
+    with TickerProviderStateMixin {
+  late AnimationController _headerController;
+  late Animation<double> _headerFade;
+  late Animation<Offset> _headerSlide;
 
   @override
   void initState() {
     super.initState();
-    _audioPlayer = AudioPlayer();
-    _spinController = AnimationController(
+    _headerController = AnimationController(
+      duration: const Duration(milliseconds: 900),
       vsync: this,
-      duration: const Duration(seconds: 12),
-    )..repeat();
-
-    _positionSub = _audioPlayer.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
-    });
-    _durationSub = _audioPlayer.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
-    _stateSub = _audioPlayer.onPlayerStateChanged.listen((s) {
-      if (!mounted) return;
-      setState(() {
-        if (s == PlayerState.playing) {
-          _state = _PlaybackState.playing;
-        } else if (s == PlayerState.paused) {
-          _state = _PlaybackState.paused;
-        } else if (s == PlayerState.stopped) {
-          _state = _PlaybackState.idle;
-        }
-      });
-    });
-    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
-      _playNext();
-    });
+    );
+    _headerFade = CurvedAnimation(
+      parent: _headerController,
+      curve: Curves.easeOut,
+    );
+    _headerSlide = Tween<Offset>(begin: const Offset(0, -0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _headerController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+    _headerController.forward();
   }
 
   @override
   void dispose() {
-    _positionSub?.cancel();
-    _durationSub?.cancel();
-    _stateSub?.cancel();
-    _completeSub?.cancel();
-    _spinController.dispose();
-    _audioPlayer.dispose();
+    _headerController.dispose();
     super.dispose();
-  }
-
-  Future<void> _playSongAt(int index) async {
-    final song = songs[index];
-    setState(() {
-      _currentIndex = index;
-      _state = _PlaybackState.loading;
-      _position = Duration.zero;
-      _duration = Duration.zero;
-    });
-
-    try {
-      await _audioPlayer.stop();
-      await _audioPlayer.play(UrlSource(song.url));
-      if (!mounted) return;
-      setState(() => _state = _PlaybackState.playing);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _state = _PlaybackState.error);
-    }
-  }
-
-  void _togglePlayPause() {
-    if (_currentIndex == null) return;
-    if (_state == _PlaybackState.playing) {
-      _audioPlayer.pause();
-    } else if (_state == _PlaybackState.paused) {
-      _audioPlayer.resume();
-    } else if (_state == _PlaybackState.error) {
-      _playSongAt(_currentIndex!);
-    }
-  }
-
-  void _playNext() {
-    if (_currentIndex == null) return;
-    final next = (_currentIndex! + 1) % songs.length;
-    _playSongAt(next);
-  }
-
-  void _playPrevious() {
-    if (_currentIndex == null) return;
-    final prev = (_currentIndex! - 1 + songs.length) % songs.length;
-    _playSongAt(prev);
-  }
-
-  String _formatDuration(Duration d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    final minutes = two(d.inMinutes.remainder(60));
-    final seconds = two(d.inSeconds.remainder(60));
-    return '$minutes:$seconds';
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasActiveSong = _currentIndex != null;
-
     return Scaffold(
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  backgroundColor: const Color(0xFF0B0B0F),
-                  elevation: 0,
-                  pinned: true,
-                  titleSpacing: 20,
-                  title: Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF1ED760),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'AUDIO PLAYER',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
+      backgroundColor: const Color(0xFF0F0E17),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _buildHeader()),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+              sliver: SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => _buildMemberCard(index),
+                  childCount: members.length,
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Koleksi Lagu',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${songs.length} lagu dari internet',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF8A8A93),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.of(context).size.width > 600
+                      ? 2
+                      : 1,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: MediaQuery.of(context).size.width > 600
+                      ? 1.15
+                      : 1.6,
                 ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    8,
-                    20,
-                    hasActiveSong ? 110 : 24,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildSongTile(index),
-                      childCount: songs.length,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-
-          if (hasActiveSong)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(top: false, child: _buildMiniPlayer()),
-            ),
-        ],
+            SliverToBoxAdapter(child: _buildFooter()),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSongTile(int index) {
-    final song = songs[index];
-    final isActive = _currentIndex == index;
-    final isPlaying = isActive && _state == _PlaybackState.playing;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: () => _playSongAt(index),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF1C1C24) : const Color(0xFF15151B),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isActive
-                  ? const Color(0xFF1ED760)
-                  : const Color(0xFF22222B),
-              width: isActive ? 1.4 : 1,
-            ),
-          ),
-          child: Row(
+  Widget _buildHeader() {
+    return FadeTransition(
+      opacity: _headerFade,
+      child: SlideTransition(
+        position: _headerSlide,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 36, 24, 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 52,
-                height: 52,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: LinearGradient(
-                    colors: song.gradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  color: const Color(0xFF6C63FF).withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF6C63FF).withOpacity(0.4),
+                    width: 1,
                   ),
                 ),
-                child: Icon(
-                  isPlaying
-                      ? Icons.graphic_eq_rounded
-                      : Icons.music_note_rounded,
+                child: const Text(
+                  '✦  Kelompok Kami', // TODO: ganti nama kelompok jika ada
+                  style: TextStyle(
+                    color: Color(0xFF6C63FF),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Tim\nHebat Kami', // TODO: ganti judul jika perlu
+                style: TextStyle(
                   color: Colors.white,
-                  size: 24,
+                  fontSize: 40,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14.5,
-                        color: isActive
-                            ? const Color(0xFF1ED760)
-                            : Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      song.artist,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF8A8A93),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? const Color(0xFF1ED760)
-                      : const Color(0xFF22222B),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isActive && _state == _PlaybackState.loading
-                      ? Icons.hourglass_top_rounded
-                      : (isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded),
-                  color: isActive ? Colors.black : Colors.white,
-                  size: 22,
+              const SizedBox(height: 12),
+              Text(
+                // TODO: ganti deskripsi kelompok
+                'Berkenalan dengan anggota kelompok kami.\nKetuk kartu untuk melihat detail lengkap.',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 14,
+                  height: 1.6,
                 ),
               ),
             ],
@@ -375,162 +222,234 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
     );
   }
 
-  Widget _buildMiniPlayer() {
-    final song = _currentSong!;
-    final isPlaying = _state == _PlaybackState.playing;
-    final isLoading = _state == _PlaybackState.loading;
-    final isError = _state == _PlaybackState.error;
+  Widget _buildMemberCard(int index) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 500 + index * 120),
+      curve: Curves.easeOutBack,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: Opacity(opacity: value.clamp(0, 1), child: child),
+        );
+      },
+      child: _FlipCard(member: members[index]),
+    );
+  }
 
-    final maxMs = _duration.inMilliseconds.clamp(1, double.maxFinite.toInt());
-    final posMs = _position.inMilliseconds.clamp(0, maxMs).toDouble();
+  Widget _buildFooter() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 32),
+      child: Center(
+        child: Text(
+          '${members.length} Anggota · Tap kartu untuk flip ↩',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 12,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
+// ============================================================
+// FLIP CARD WIDGET
+// ============================================================
+
+class _FlipCard extends StatefulWidget {
+  final Member member;
+  const _FlipCard({required this.member});
+
+  @override
+  State<_FlipCard> createState() => _FlipCardState();
+}
+
+class _FlipCardState extends State<_FlipCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  bool _isFront = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0, end: math.pi).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutCubic),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _flip() {
+    if (_isFront) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+    setState(() => _isFront = !_isFront);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _flip,
+      child: AnimatedBuilder(
+        animation: _animation,
+        builder: (context, child) {
+          final angle = _animation.value;
+          final isFrontVisible = angle < math.pi / 2;
+
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle),
+            child: isFrontVisible
+                ? _CardFront(member: widget.member)
+                : Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity()..rotateY(math.pi),
+                    child: _CardBack(member: widget.member),
+                  ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── SISI DEPAN ──────────────────────────────────────────────
+
+class _CardFront extends StatelessWidget {
+  final Member member;
+  const _CardFront({required this.member});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF17171F),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF26262F)),
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [member.cardColor.withOpacity(0.25), const Color(0xFF1A1A2E)],
+        ),
+        border: Border.all(
+          color: member.cardColor.withOpacity(0.3),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: member.cardColor.withOpacity(0.15),
             blurRadius: 20,
+            spreadRadius: 0,
             offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                activeTrackColor: const Color(0xFF1ED760),
-                inactiveTrackColor: const Color(0xFF2A2A33),
-                thumbColor: const Color(0xFF1ED760),
-              ),
-              child: SizedBox(
-                height: 14,
-                child: Slider(
-                  min: 0,
-                  max: maxMs.toDouble(),
-                  value: posMs,
-                  onChanged: isError
-                      ? null
-                      : (v) => _audioPlayer.seek(
-                          Duration(milliseconds: v.round()),
-                        ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _formatDuration(_position),
-                    style: const TextStyle(
-                      color: Color(0xFF8A8A93),
-                      fontSize: 11,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  Text(
-                    _formatDuration(_duration),
-                    style: const TextStyle(
-                      color: Color(0xFF8A8A93),
-                      fontSize: 11,
-                      fontFeatures: [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
             Row(
               children: [
-                AnimatedBuilder(
-                  animation: _spinController,
-                  builder: (context, child) {
-                    return Transform.rotate(
-                      angle: isPlaying ? _spinController.value * 6.28319 : 0,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      gradient: LinearGradient(
-                        colors: song.gradient,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                // Avatar circle
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        member.cardColor.withOpacity(0.6),
+                        member.cardColor.withOpacity(0.2),
+                      ],
                     ),
-                    child: const Icon(
-                      Icons.music_note_rounded,
-                      color: Colors.white,
-                      size: 22,
+                    border: Border.all(
+                      color: member.cardColor.withOpacity(0.5),
+                      width: 2,
                     ),
                   ),
+                  child: Icon(member.icon, color: Colors.white, size: 28),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: Colors.white,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: member.cardColor.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          member.role.toUpperCase(),
+                          style: TextStyle(
+                            color: member.cardColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
-                        isError
-                            ? 'Gagal memutar lagu'
-                            : (isLoading ? 'Memuat…' : song.artist),
+                        member.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isError
-                              ? const Color(0xFFFF5A36)
-                              : const Color(0xFF8A8A93),
-                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 4),
-                _miniIconButton(
-                  icon: Icons.skip_previous_rounded,
-                  onTap: _playPrevious,
+              ],
+            ),
+            const Spacer(),
+            Container(height: 1, color: Colors.white.withOpacity(0.08)),
+            const SizedBox(height: 12),
+            Text(
+              member.nim,
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.5),
+                fontSize: 12,
+                fontFamily: 'monospace',
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  Icons.touch_app_outlined,
+                  size: 12,
+                  color: member.cardColor.withOpacity(0.7),
                 ),
                 const SizedBox(width: 4),
-                _miniIconButton(
-                  icon: isLoading
-                      ? Icons.hourglass_top_rounded
-                      : (isPlaying
-                            ? Icons.pause_circle_filled_rounded
-                            : Icons.play_circle_fill_rounded),
-                  onTap: _togglePlayPause,
-                  primary: true,
-                ),
-                const SizedBox(width: 4),
-                _miniIconButton(
-                  icon: Icons.skip_next_rounded,
-                  onTap: _playNext,
+                Text(
+                  'Ketuk untuk detail',
+                  style: TextStyle(
+                    color: member.cardColor.withOpacity(0.7),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -539,22 +458,143 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen>
       ),
     );
   }
+}
 
-  Widget _miniIconButton({
-    required IconData icon,
-    required VoidCallback onTap,
-    bool primary = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(100),
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(
-          icon,
-          color: primary ? const Color(0xFF1ED760) : Colors.white,
-          size: primary ? 38 : 26,
-        ),
+// ── SISI BELAKANG ───────────────────────────────────────────
+
+class _CardBack extends StatelessWidget {
+  final Member member;
+  const _CardBack({required this.member});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: member.cardColor.withOpacity(0.9),
+        boxShadow: [
+          BoxShadow(
+            color: member.cardColor.withOpacity(0.3),
+            blurRadius: 24,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Decorative circles
+          Positioned(
+            top: -20,
+            right: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -30,
+            left: -15,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TENTANG SAYA',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  member.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  member.quote,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic,
+                    height: 1.5,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.badge_outlined,
+                        color: Colors.white70,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        member.nim,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.flip_outlined,
+                      size: 11,
+                      color: Colors.white.withOpacity(0.5),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Ketuk untuk kembali',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
