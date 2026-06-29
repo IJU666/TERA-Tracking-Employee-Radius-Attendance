@@ -74,11 +74,11 @@ final List<Member> members = [
 
   // ── ANGGOTA 4 ──────────────────────────────────────────
   Member(
-    name: 'Nama Anggota 4', // TODO: ganti nama
-    nim: 'NIM / ID 4', // TODO: ganti NIM
-    role: 'Anggota', // TODO: ganti peran
-    quote: '"Tulis motto di sini"', // TODO: ganti quote
-    cardColor: const Color(0xFFF7C948),
+    name: 'Abdullah Nurhadi Krishnamurti', // TODO: ganti nama
+    nim: '230102003', // TODO: ganti NIM
+    role: 'Inside', // TODO: ganti peran
+    quote: '"Outside but inside"', // TODO: ganti quote
+    cardColor: const Color.fromARGB(255, 247, 72, 238),
     icon: Icons.person,
   ),
 ];
