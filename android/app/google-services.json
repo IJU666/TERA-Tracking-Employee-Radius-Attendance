@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "749184033665",
+    "firebase_url": "https://tera-app-89912-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "tera-app-89912",
+    "storage_bucket": "tera-app-89912.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:749184033665:android:7d1a6127af46ff9b8f3e80",
+        "android_client_info": {
+          "package_name": "com.example.tugas_besar"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBytsMCzMKW79nCQEGgKbStE9LZwxVAVxE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
