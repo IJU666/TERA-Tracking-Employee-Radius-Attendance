@@ -7,10 +7,13 @@ import '../../core/utils/date_formatter.dart';
 import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../attendance/absen_screen.dart';
 import '../widgets/attendance_list_tile.dart';
+import '../widgets/bottom_navbar.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/status_badge.dart';
+import '../setting/setting_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,6 +23,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  int _navIndex = 0;
+
+  final List<Widget> _pages = [
+    const _HomeContent(),
+    AbsenScreen(),
+    SettingScreen(),
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -33,63 +44,74 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(child: _pages[_navIndex]),
+      bottomNavigationBar: BottomNavbar(
+        currentIndex: _navIndex,
+        onTap: (index) => setState(() => _navIndex = index),
+      ),
+    );
+  }
+}
+
+class _HomeContent extends StatelessWidget {
+  const _HomeContent();
+
+  @override
+  Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
     final attendance = context.watch<AttendanceProvider>();
     final unreadCount = context.watch<NotificationProvider>().unreadCount;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: () async {
-            await attendance.loadTodayStatus();
-            await attendance.loadRecentHistory();
-            await attendance.loadMonthlySummary();
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            children: [
-              _buildAppBar(unreadCount),
-              const SizedBox(height: 16),
-              _buildGreetingCard(user?.nama ?? 'Karyawan'),
-              const SizedBox(height: 16),
-              _buildAttendanceStatusCard(attendance),
-              const SizedBox(height: 24),
-              const SectionHeader(title: 'Layanan Cepat'),
-              const SizedBox(height: 12),
-              _buildQuickServices(attendance.remainingLeaveDays),
-              const SizedBox(height: 24),
-              SectionHeader(
-                title: 'Absensi Terakhir',
-                actionLabel: 'Lihat Semua',
-                onActionTap: () {
-                  Navigator.pushNamed(context, AppRoutes.history);
-                },
-              ),
-              const SizedBox(height: 12),
-              _buildLastAttendance(attendance),
-              const SizedBox(height: 24),
-              const SectionHeader(title: 'Ringkasan Bulan Ini'),
-              const SizedBox(height: 12),
-              _buildMonthlySummary(attendance),
-            ],
+    return RefreshIndicator(
+      onRefresh: () async {
+        await attendance.loadTodayStatus();
+        await attendance.loadRecentHistory();
+        await attendance.loadMonthlySummary();
+      },
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        children: [
+          _buildAppBar(context, unreadCount),
+          const SizedBox(height: 16),
+          _buildGreetingCard(user?.nama ?? 'Karyawan'),
+          const SizedBox(height: 16),
+          _buildAttendanceStatusCard(context, attendance),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'Layanan Cepat'),
+          const SizedBox(height: 12),
+          _buildQuickServices(context, attendance.remainingLeaveDays),
+          const SizedBox(height: 24),
+          SectionHeader(
+            title: 'Absensi Terakhir',
+            actionLabel: 'Lihat Semua',
+            onActionTap: () {
+              Navigator.pushNamed(context, AppRoutes.history);
+            },
           ),
-        ),
+          const SizedBox(height: 12),
+          _buildLastAttendance(attendance),
+          const SizedBox(height: 24),
+          const SectionHeader(title: 'Ringkasan Bulan Ini'),
+          const SizedBox(height: 12),
+          _buildMonthlySummary(attendance),
+        ],
       ),
     );
   }
 
-  Widget _buildAppBar(int unreadCount) {
+  Widget _buildAppBar(BuildContext context, int unreadCount) {
     return Row(
       children: [
         Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppColors.primary,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(Icons.text_fields_rounded, color: AppColors.primary, size: 20),
+          child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 10),
         const Column(
@@ -174,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildAttendanceStatusCard(AttendanceProvider attendance) {
+  Widget _buildAttendanceStatusCard(BuildContext context, AttendanceProvider attendance) {
     final today = attendance.todayAttendance;
     final checkIn = today?.checkIn != null
         ? DateFormatter.formatTime(today!.checkIn!)
@@ -305,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickServices(int remainingLeaveDays) {
+  Widget _buildQuickServices(BuildContext context, int remainingLeaveDays) {
     return Row(
       children: [
         Expanded(
