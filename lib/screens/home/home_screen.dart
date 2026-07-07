@@ -339,6 +339,7 @@ class _HomeContent extends StatelessWidget {
             subtitle: 'Sisa: $remainingLeaveDays hari',
             subtitleColor: Colors.orange,
             onTap: () {
+              // Mengirim argument 'cuti' agar otomatis membuka tab Cuti
               Navigator.pushNamed(context, AppRoutes.leaveForm, arguments: 'cuti');
             },
           ),
@@ -353,6 +354,7 @@ class _HomeContent extends StatelessWidget {
             subtitle: 'Lihat status',
             subtitleColor: AppColors.primary,
             onTap: () {
+              // Mengirim argument 'izin' agar otomatis membuka tab Izin
               Navigator.pushNamed(context, AppRoutes.leaveForm, arguments: 'izin');
             },
           ),

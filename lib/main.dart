@@ -10,6 +10,7 @@ import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/leave/leave_form_screen.dart'; 
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,16 +46,15 @@ class MyApp extends StatelessWidget {
         initialRoute: AppRoutes.login,
 
         // Hanya route yang screen-nya sudah dibuat yang didaftarkan di sini.
-        // Tambahkan entry baru setiap kali screen baru selesai dibuat,
-        // urutannya ikuti daftar "Belum Dibuat" di PROGRESS.md.
         routes: {
           AppRoutes.login: (_) => const LoginScreen(),
           AppRoutes.home: (_) => const HomeScreen(),
+          // 2. DAFTARKAN ROUTE LEAVE FORM DI SINI
+          AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
         },
 
         // Fallback supaya app tidak crash kalau ada route yang dipanggil
-        // tapi screen-nya belum didaftarkan di atas (misal masih dalam
-        // progress pengembangan).
+        // tapi screen-nya belum didaftarkan di atas
         onUnknownRoute: (settings) {
           return MaterialPageRoute(
             builder: (context) => Scaffold(
