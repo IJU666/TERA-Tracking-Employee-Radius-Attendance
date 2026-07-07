@@ -1,3 +1,4 @@
+/// Data titik lokasi saat check-in/check-out (nested di dalam AttendanceModel).
 class CheckPointModel {
   final DateTime timestamp;
   final double lat;

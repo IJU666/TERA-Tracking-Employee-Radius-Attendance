@@ -1,35 +1,52 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// import '../models/notification_model.dart';
-// import '../repositories/notification_repository.dart';
 
+import '../models/notification_model.dart';
+import '../repositories/notification_repository.dart';
+
+/// Provider untuk list notifikasi & unread count (badge lonceng di home_screen).
 class NotificationProvider extends ChangeNotifier {
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
+  final NotificationRepository _repository = NotificationRepository();
 
-  // List<NotificationModel> _notifications = [];
-  // List<NotificationModel> get notifications => _notifications;
+  List<NotificationModel> _notifications = [];
+  StreamSubscription<List<NotificationModel>>? _subscription;
 
-  int get unreadCount {
-    // return _notifications.where((n) => !n.isRead).length;
-    return 0; // Placeholder
-  }
+  List<NotificationModel> get notifications => _notifications;
 
-  Future<void> fetchNotifications(String uid) async {
-    _isLoading = true;
-    notifyListeners();
+  int get unreadCount => _notifications.where((n) => !n.isRead).length;
 
-    try {
-      // TODO: Stream atau Get notifikasi dari Firestore
-    } catch (e) {
-      debugPrint("Error fetching notifications: $e");
-    } finally {
-      _isLoading = false;
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
+  /// Mulai dengarkan notifikasi realtime. Panggil sekali saat home_screen
+  /// pertama kali dibuka (misalnya lewat splash_screen atau initState).
+  void listen() {
+    final uid = _uid;
+    if (uid == null) return;
+
+    _subscription?.cancel();
+    _subscription = _repository.getByUid(uid).listen((data) {
+      _notifications = data;
       notifyListeners();
-    }
+    });
   }
 
-  Future<void> markAsRead(String notificationId) async {
-    // TODO: Update status isRead menjadi true di database
-    notifyListeners();
+  Future<void> markAsRead(String id) async {
+    final uid = _uid;
+    if (uid == null) return;
+    await _repository.markAsRead(uid, id);
+  }
+
+  Future<void> markAllRead() async {
+    final uid = _uid;
+    if (uid == null) return;
+    await _repository.markAllRead(uid);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

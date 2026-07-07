@@ -1,41 +1,23 @@
-import 'package:flutter/material.dart';
-
-// --- IMPORT SCREENS: AUTH ---
-import '../../screens/auth/splash_screen.dart';
-import '../../screens/auth/login_screen.dart';
-import '../../screens/auth/forgot_password_screen.dart';
-
-// --- IMPORT SCREENS: HOME ---
-import '../../screens/home/home_screen.dart';
-
-// --- IMPORT SCREENS: ATTENDANCE ---
-import '../../screens/attendance/absen_screen.dart';
-import '../../screens/attendance/absen_result_screen.dart';
-import '../../screens/attendance/history_screen.dart';
-
-// --- IMPORT SCREENS: LEAVE ---
-import '../../screens/leave/leave_form_screen.dart';
-import '../../screens/leave/leave_status_screen.dart';
-
-// --- IMPORT SCREENS: SETTING ---
-import '../../screens/setting/setting_screen.dart';
-import '../../screens/setting/edit_profile_screen.dart';
-
-// --- IMPORT SCREENS: ADMIN ---
-import '../../screens/admin/admin_dashboard_screen.dart';
-import '../../screens/admin/office_setting_screen.dart';
-import '../../screens/admin/leave_approval_screen.dart';
-import '../../screens/admin/employee_management_screen.dart';
-import '../../screens/admin/employee_form_screen.dart';
-import '../../screens/admin/employee_detail_screen.dart';
-
-// --- IMPORT SCREENS: NOTIFICATION ---
-import '../../screens/notification/notification_screen.dart';
-
+/// Kumpulan nama route yang dipakai di seluruh aplikasi.
+///
+/// Catatan: sengaja hanya berisi konstanta nama route (bukan mapping ke
+/// Widget) supaya file ini bisa langsung dipakai oleh login_screen.dart &
+/// home_screen.dart tanpa perlu semua screen lain sudah dibuat.
+///
+/// Setelah semua screen selesai dibuat, tambahkan `routes` map di
+/// main.dart / app_router terpisah, contoh:
+///
+/// MaterialApp(
+///   initialRoute: AppRoutes.splash,
+///   routes: {
+///     AppRoutes.login: (_) => const LoginScreen(),
+///     AppRoutes.home: (_) => const HomeScreen(),
+///     ...
+///   },
+/// )
 class AppRoutes {
   AppRoutes._();
 
-  // Route Names Constants
   static const String splash = '/splash';
   static const String login = '/login';
   static const String forgotPassword = '/forgot-password';
@@ -60,39 +42,4 @@ class AppRoutes {
   static const String employeeDetail = '/employee-detail';
 
   static const String notification = '/notification';
-
-  // Map Routing ke Widget Screen
-  static final Map<String, WidgetBuilder> routes = {
-    // Auth
-    // splash: (context) => const SplashScreen(),
-    login: (context) => const LoginScreen(),
-    // forgotPassword: (context) => const ForgotPasswordScreen(),
-
-    // // Home
-    // home: (context) => const HomeScreen(),
-
-    // // Attendance
-    // absen: (context) => const AbsenScreen(),
-    // absenResult: (context) => const AbsenResultScreen(),
-    // history: (context) => const HistoryScreen(),
-
-    // // Leave
-    // leaveForm: (context) => const LeaveFormScreen(),
-    // leaveStatus: (context) => const LeaveStatusScreen(),
-
-    // // Setting
-    // setting: (context) => const SettingScreen(),
-    // editProfile: (context) => const EditProfileScreen(),
-
-    // // Admin
-    // adminDashboard: (context) => const AdminDashboardScreen(),
-    // officeSetting: (context) => const OfficeSettingScreen(),
-    // leaveApproval: (context) => const LeaveApprovalScreen(),
-    // employeeManagement: (context) => const EmployeeManagementScreen(),
-    // employeeForm: (context) => const EmployeeFormScreen(),
-    // employeeDetail: (context) => const EmployeeDetailScreen(),
-
-    // // Notification
-    // notification: (context) => const NotificationScreen(),
-  };
 }

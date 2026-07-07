@@ -1,3 +1,4 @@
+/// Model data karyawan / pengguna aplikasi.
 class UserModel {
   final String uid;
   final String nama;
@@ -6,9 +7,9 @@ class UserModel {
   final String divisi;
   final String jabatan;
   final String role; // 'karyawan' atau 'admin'
-  final String fotoUrl;
+  final String? fotoUrl;
 
-  UserModel({
+  const UserModel({
     required this.uid,
     required this.nama,
     required this.email,
@@ -16,28 +17,26 @@ class UserModel {
     required this.divisi,
     required this.jabatan,
     required this.role,
-    required this.fotoUrl,
+    this.fotoUrl,
   });
 
-  // --- BAGIAN INI UNTUK MENYELESAIKAN ERROR FROMJSON ---
-  // Mengonversi data Map/JSON dari Firebase menjadi Objek UserModel
-  factory UserModel.fromJson(Map<String, dynamic> json) {
+  bool get isAdmin => role == 'admin';
+
+  factory UserModel.fromMap(Map<String, dynamic> map, String uid) {
     return UserModel(
-      uid: json['uid'] ?? '',
-      nama: json['nama'] ?? '',
-      email: json['email'] ?? '',
-      nik: json['nik'] ?? '',
-      divisi: json['divisi'] ?? '',
-      jabatan: json['jabatan'] ?? '',
-      role: json['role'] ?? 'karyawan', // default sebagai karyawan jika kosong
-      fotoUrl: json['fotoUrl'] ?? '',
+      uid: uid,
+      nama: map['nama'] ?? '',
+      email: map['email'] ?? '',
+      nik: map['nik'] ?? '',
+      divisi: map['divisi'] ?? '',
+      jabatan: map['jabatan'] ?? '',
+      role: map['role'] ?? 'karyawan',
+      fotoUrl: map['fotoUrl'],
     );
   }
 
-  // Mengonversi Objek UserModel kembali ke Map/JSON (berguna saat tambah/edit karyawan nanti)
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toMap() {
     return {
-      'uid': uid,
       'nama': nama,
       'email': email,
       'nik': nik,
@@ -46,5 +45,26 @@ class UserModel {
       'role': role,
       'fotoUrl': fotoUrl,
     };
+  }
+
+  UserModel copyWith({
+    String? nama,
+    String? email,
+    String? nik,
+    String? divisi,
+    String? jabatan,
+    String? role,
+    String? fotoUrl,
+  }) {
+    return UserModel(
+      uid: uid,
+      nama: nama ?? this.nama,
+      email: email ?? this.email,
+      nik: nik ?? this.nik,
+      divisi: divisi ?? this.divisi,
+      jabatan: jabatan ?? this.jabatan,
+      role: role ?? this.role,
+      fotoUrl: fotoUrl ?? this.fotoUrl,
+    );
   }
 }

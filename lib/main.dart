@@ -1,31 +1,21 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-// Firebase Options (Dihasilkan oleh FlutterFire CLI)
-import 'firebase_options.dart';
-
-// Konfigurasi Inti (Route saja, Theme dihapus)
+import 'core/constants/app_colors.dart';
 import 'core/routes/app_routes.dart';
-
-// Providers
-import 'providers/auth_provider.dart';
-import 'providers/user_provider.dart';
+import 'firebase_options.dart';
 import 'providers/attendance_provider.dart';
-import 'providers/office_provider.dart';
-import 'providers/leave_provider.dart';
+import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/home/home_screen.dart';
 
-void main() async {
-  // Wajib dipanggil sebelum inisialisasi Firebase
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inisialisasi Firebase menggunakan konfigurasi dari firebase_options.dart
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
-  // Jalankan aplikasi
   runApp(const MyApp());
 }
 
@@ -35,26 +25,54 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      // Daftarkan semua provider yang ada di folder lib/providers/
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
-        ChangeNotifierProvider(create: (_) => OfficeProvider()),
-        ChangeNotifierProvider(create: (_) => LeaveProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
-        title: 'Employee Attendance App',
+        title: 'TERA - Absensce Application',
         debugShowCheckedModeBanner: false,
-        
-        // Menggunakan tema default Flutter karena app_theme dihapus
-        theme: ThemeData(), 
-        
-        // Konfigurasi Routing
-        // Langsung diarahkan ke halaman Login (pastikan variabel AppRoutes.login ada di file routes kamu)
-        initialRoute: AppRoutes.login, 
-        routes: AppRoutes.routes,       
+        theme: ThemeData(
+          scaffoldBackgroundColor: AppColors.background,
+          colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
+          useMaterial3: true,
+        ),
+
+        // Sementara initialRoute langsung ke login karena splash_screen.dart
+        // belum dibuat (lihat PROGRESS.md). Setelah splash_screen ada,
+        // ganti initialRoute jadi AppRoutes.splash.
+        initialRoute: AppRoutes.login,
+
+        // Hanya route yang screen-nya sudah dibuat yang didaftarkan di sini.
+        // Tambahkan entry baru setiap kali screen baru selesai dibuat,
+        // urutannya ikuti daftar "Belum Dibuat" di PROGRESS.md.
+        routes: {
+          AppRoutes.login: (_) => const LoginScreen(),
+          AppRoutes.home: (_) => const HomeScreen(),
+        },
+
+        // Fallback supaya app tidak crash kalau ada route yang dipanggil
+        // tapi screen-nya belum didaftarkan di atas (misal masih dalam
+        // progress pengembangan).
+        onUnknownRoute: (settings) {
+          return MaterialPageRoute(
+            builder: (context) => Scaffold(
+              appBar: AppBar(title: const Text('Halaman Belum Tersedia')),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Route "${settings.name}" belum didaftarkan di main.dart.\n'
+                    'Cek PROGRESS.md untuk status pengembangan screen ini.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

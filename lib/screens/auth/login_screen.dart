@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:provider/provider.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
-import '../../../../core/routes/app_routes.dart';
-import '../../../../core/utils/validator_util.dart';
-import '../../../widgets/loading_overlay.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_strings.dart';
+import '../../core/routes/app_routes.dart';
+import '../../core/utils/validator_util.dart';
+import '../../providers/auth_provider.dart';
+import '../widgets/loading_overlay.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,70 +31,31 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    // 1. Menutup keyboard sebelum proses login
     FocusScope.of(context).unfocus();
 
-    // 2. Validasi form input
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
-    try {
-      final dbRef = FirebaseDatabase.instance.ref("users");
-      
-      // 3. Query berdasarkan field email (Pastikan field "email" di Realtime Database sudah di-index)
-      final snapshot = await dbRef
-          .orderByChild("email")
-          .equalTo(_emailController.text.trim())
-          .get();
-
-      if (!mounted) return;
-
-      // 4. Pengecekan Ketersediaan User
-      if (snapshot.exists) {
-        bool isPasswordMatch = false;
-        final usersData = snapshot.value as Map<dynamic, dynamic>;
-
-        // Mengecek password dari data yang ditemukan
-        for (var entry in usersData.entries) {
-          final userData = entry.value as Map<dynamic, dynamic>;
-          // PERHATIAN: Di production, hindari membandingkan plain text seperti ini
-          if (userData['password'] == _passwordController.text.trim()) {
-            isPasswordMatch = true;
-            // Tips: Kamu bisa menyimpan data user yang aktif ke UserProvider di sini sebelum pindah halaman
-            break; 
-          }
-        }
-
-        if (isPasswordMatch) {
-          Navigator.pushReplacementNamed(context, AppRoutes.home);
-        } else {
-          _showSnackBar('Password yang Anda masukkan salah!', AppColors.error);
-        }
-      } else {
-        _showSnackBar('Email tidak terdaftar!', AppColors.error);
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _showSnackBar('Terjadi kesalahan koneksi: $e', AppColors.error);
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  // Helper method untuk menampilkan SnackBar dengan rapi
-  void _showSnackBar(String message, Color backgroundColor) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: backgroundColor,
-        behavior: SnackBarBehavior.floating, // Membuat snackbar lebih modern (melayang)
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
+    final authProvider = context.read<AuthProvider>();
+    final error = await authProvider.login(
+      email: _emailController.text.trim(),
+      password: _passwordController.text.trim(),
     );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (error == null) {
+      Navigator.pushReplacementNamed(context, AppRoutes.home);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
@@ -103,17 +65,16 @@ class _LoginScreenState extends State<LoginScreen> {
       body: LoadingOverlay(
         isLoading: _isLoading,
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildLogo(),
-                  const SizedBox(height: 32),
-                  _buildFormCard(),
-                ],
-              ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 48),
+                _buildLogo(),
+                const SizedBox(height: 32),
+                _buildFormCard(),
+              ],
             ),
           ),
         ),
@@ -138,14 +99,14 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: const Icon(
+          child: Icon(
             Icons.text_fields_rounded,
             color: AppColors.primary,
             size: 48,
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           AppStrings.appName,
           style: TextStyle(
             fontSize: 22,
@@ -246,11 +207,11 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.4),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.error, width: 1.2),
+        borderSide: BorderSide(color: AppColors.error, width: 1.2),
       ),
     );
   }
@@ -308,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
         onPressed: () {
           Navigator.pushNamed(context, AppRoutes.forgotPassword);
         },
-        child: const Text(
+        child: Text(
           'Lupa Password?',
           style: TextStyle(
             fontSize: 13,
