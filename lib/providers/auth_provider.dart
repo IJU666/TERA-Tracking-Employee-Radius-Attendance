@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-
 import '../core/constants/app_strings.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/user_repository.dart';
 
-/// Provider untuk state login & user yang sedang aktif.
-/// Dipakai di login_screen.dart dan home_screen.dart (untuk greeting nama).
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository();
   final UserRepository _userRepository = UserRepository();
@@ -18,7 +15,6 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
 
-  /// Panggil sekali di splash_screen untuk cek sesi yang sedang berjalan.
   Future<void> init() async {
     final firebaseUser = _authRepository.currentUser;
     if (firebaseUser != null) {
@@ -37,18 +33,39 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Step 1: Autentikasi akun ke Firebase Auth
       final firebaseUser = await _authRepository.login(
         email: email,
         password: password,
       );
 
       if (firebaseUser == null) {
-        return AppStrings.errorLoginFailed;
+        return AppStrings.errorLoginFailed; // Email/Password salah
       }
 
-      _currentUser = await _userRepository.getUser(firebaseUser.uid);
-      return null;
-    } on Exception catch (_) {
+      // Step 2: Ambil data profil dari Realtime Database
+      try {
+        final userData = await _userRepository.getUser(firebaseUser.uid);
+        
+        // Antisipasi jika akun di Auth ada, tapi nodenya tidak ada di Realtime Database
+        if (userData == null) {
+          await _authRepository.logout(); // paksa logout kembali
+          return "Akun terdaftar, namun data profil gagal ditemukan di database.";
+        }
+
+        _currentUser = userData;
+        return null; // LOGIN SUKSES TOTAL
+        
+      } catch (dbError) {
+        // Mencetak error asli database ke Console agar bisa Anda baca saat debug
+        debugPrint("❌ ERROR DATABASE: $dbError");
+        await _authRepository.logout(); 
+        return "Gagal terhubung ke database profil. Periksa koneksi atau rules Anda.";
+      }
+
+    } catch (authError) {
+      // Mencetak error asli autentikasi ke Console
+      debugPrint("❌ ERROR AUTHENTICATION: $authError");
       return AppStrings.errorLoginFailed;
     } finally {
       _isLoading = false;
@@ -66,7 +83,8 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authRepository.forgotPassword(email);
       return null;
-    } on Exception catch (_) {
+    } catch (e) {
+      debugPrint("❌ ERROR FORGOT PASSWORD: $e");
       return AppStrings.errorUnknown;
     }
   }
