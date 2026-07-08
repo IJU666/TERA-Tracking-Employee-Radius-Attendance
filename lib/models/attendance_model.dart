@@ -8,12 +8,13 @@ class AttendanceModel {
   final DateTime date;
   final DateTime? checkIn;
   final DateTime? checkOut;
-  final String status; // 'hadir' | 'terlambat' | 'izin' | 'cuti' | 'absen'
-  final String officeName; // contoh: "Kantor Pusat"
+  final String status;
+  final String officeName;
   final CheckPointModel? checkInLocation;
   final CheckPointModel? checkOutLocation;
   final String? checkInPhotoUrl;
   final String? checkOutPhotoUrl;
+  final String? leaveNote; // TAMBAHAN: catatan izin/cuti, contoh "Acara Keluarga - Sudah disetujui HRD"
 
   const AttendanceModel({
     required this.id,
@@ -28,9 +29,9 @@ class AttendanceModel {
     this.checkOutLocation,
     this.checkInPhotoUrl,
     this.checkOutPhotoUrl,
+    this.leaveNote, // TAMBAHAN
   });
 
-  /// Label status yang enak dibaca di UI, contoh: "Terlambat", "Hadir".
   String get statusLabel {
     switch (status) {
       case 'hadir':
@@ -53,20 +54,18 @@ class AttendanceModel {
       nama: map['nama'] ?? '',
       date: DateTime.parse(map['date']),
       checkIn: map['checkIn'] != null ? DateTime.parse(map['checkIn']) : null,
-      checkOut:
-          map['checkOut'] != null ? DateTime.parse(map['checkOut']) : null,
+      checkOut: map['checkOut'] != null ? DateTime.parse(map['checkOut']) : null,
       status: map['status'] ?? 'absen',
       officeName: map['officeName'] ?? '-',
       checkInLocation: map['checkInLocation'] != null
-          ? CheckPointModel.fromMap(
-              Map<String, dynamic>.from(map['checkInLocation']))
+          ? CheckPointModel.fromMap(Map<String, dynamic>.from(map['checkInLocation']))
           : null,
       checkOutLocation: map['checkOutLocation'] != null
-          ? CheckPointModel.fromMap(
-              Map<String, dynamic>.from(map['checkOutLocation']))
+          ? CheckPointModel.fromMap(Map<String, dynamic>.from(map['checkOutLocation']))
           : null,
       checkInPhotoUrl: map['checkInPhotoUrl'],
       checkOutPhotoUrl: map['checkOutPhotoUrl'],
+      leaveNote: map['leaveNote'], // TAMBAHAN
     );
   }
 
@@ -83,6 +82,7 @@ class AttendanceModel {
       'checkOutLocation': checkOutLocation?.toMap(),
       'checkInPhotoUrl': checkInPhotoUrl,
       'checkOutPhotoUrl': checkOutPhotoUrl,
+      'leaveNote': leaveNote, // TAMBAHAN
     };
   }
 }
