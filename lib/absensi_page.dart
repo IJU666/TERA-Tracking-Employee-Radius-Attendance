@@ -51,7 +51,7 @@ class _AbsensiPageState extends State<AbsensiPage> {
               decoration: const InputDecoration(labelText: 'Radius (Meter)'),
             ),
             DropdownButtonFormField<String>(
-              value: _status,
+              initialValue: _status,
               items: ['Hadir', 'Pulang', 'Izin', 'Sakit'].map((String val) {
                 return DropdownMenuItem(value: val, child: Text(val));
               }).toList(),

@@ -55,7 +55,6 @@ class MyApp extends StatelessWidget {
         // Langsung diarahkan ke halaman Login (pastikan variabel AppRoutes.login ada di file routes kamu)
         initialRoute: AppRoutes.login, 
         routes: AppRoutes.routes,       
->>>>>>> 2392ce8f8ac5d5e71e33797dbed2b1c3c71e7536
       ),
     );
   }

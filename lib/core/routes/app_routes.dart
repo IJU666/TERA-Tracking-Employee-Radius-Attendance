@@ -1,36 +1,20 @@
 import 'package:flutter/material.dart';
 
 // --- IMPORT SCREENS: AUTH ---
-import '../../screens/auth/splash_screen.dart';
 import '../../screens/auth/login_screen.dart';
-import '../../screens/auth/forgot_password_screen.dart';
 
 // --- IMPORT SCREENS: HOME ---
-import '../../screens/home/home_screen.dart';
 
 // --- IMPORT SCREENS: ATTENDANCE ---
-import '../../screens/attendance/absen_screen.dart';
-import '../../screens/attendance/absen_result_screen.dart';
-import '../../screens/attendance/history_screen.dart';
 
 // --- IMPORT SCREENS: LEAVE ---
-import '../../screens/leave/leave_form_screen.dart';
-import '../../screens/leave/leave_status_screen.dart';
 
 // --- IMPORT SCREENS: SETTING ---
-import '../../screens/setting/setting_screen.dart';
-import '../../screens/setting/edit_profile_screen.dart';
 
 // --- IMPORT SCREENS: ADMIN ---
-import '../../screens/admin/admin_dashboard_screen.dart';
-import '../../screens/admin/office_setting_screen.dart';
-import '../../screens/admin/leave_approval_screen.dart';
 import '../../screens/admin/employee_management_screen.dart';
-import '../../screens/admin/employee_form_screen.dart';
 import '../../screens/admin/employee_detail_screen.dart';
-
 // --- IMPORT SCREENS: NOTIFICATION ---
-import '../../screens/notification/notification_screen.dart';
 
 class AppRoutes {
   AppRoutes._();
