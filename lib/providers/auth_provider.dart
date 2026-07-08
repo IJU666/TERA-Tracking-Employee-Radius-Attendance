@@ -14,6 +14,20 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
+  
+
+  Future<void> refreshCurrentUser() async {
+  if (_currentUser == null) return;
+  try {
+    final refreshedUser = await _userRepository.getUser(_currentUser!.uid);
+    if (refreshedUser != null) {
+      _currentUser = refreshedUser;
+      notifyListeners();
+    }
+  } catch (_) {
+    // silent fail — data lama tetap dipakai
+  }
+}
 
   Future<void> init() async {
     final firebaseUser = _authRepository.currentUser;

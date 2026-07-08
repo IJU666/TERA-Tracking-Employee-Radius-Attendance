@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:tugas_besar/screens/attendance/history_screen.dart';
 
 import 'core/constants/app_colors.dart';
 import 'core/routes/app_routes.dart';
@@ -49,6 +50,7 @@ class MyApp extends StatelessWidget {
         routes: {
           AppRoutes.login: (_) => const LoginScreen(),
           AppRoutes.home: (_) => const HomeScreen(),
+          AppRoutes.history: (_) => const HistoryScreen(),
           // 2. DAFTARKAN ROUTE LEAVE FORM DI SINI
           AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
         },

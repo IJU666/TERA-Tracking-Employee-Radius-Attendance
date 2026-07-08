@@ -6,12 +6,15 @@ import '../models/check_point_model.dart';
 import '../repositories/attendance_repository.dart';
 
 /// Provider untuk state absensi: status hari ini, riwayat terbaru,
-/// ringkasan bulanan, dan proses check-in/check-out.
+/// ringkasan bulanan, riwayat berdasarkan filter periode, dan proses
+/// check-in/check-out.
 ///
 /// Dipakai oleh:
 /// - home_screen.dart -> todayAttendance, todayStatusLabel, lastAttendance,
 ///   monthlyHadir/Lembur/Absen, progress getter, load...()
 /// - absen_screen.dart -> checkIn(), checkOut()
+/// - history_screen.dart -> historyList, isLoadingHistory, periodHadir/
+///   Terlambat/Izin/Absen, loadHistoryByFilter(), loadHistoryByRange()
 ///
 /// Catatan / TODO (lihat juga PROGRESS.md):
 /// - Validasi radius kantor (haversine + office_provider) belum dipasang,
@@ -20,6 +23,8 @@ import '../repositories/attendance_repository.dart';
 /// - Upload foto (imagePath) ke Storage belum dipasang, masih placeholder
 ///   `_uploadPhoto`. Setelah storage_service.dart dibuat, ganti isinya.
 /// - `remainingLeaveDays` masih hardcode, nanti pindah ke LeaveProvider.
+enum AttendanceHistoryFilter { today, thisWeek, thisMonth }
+
 class AttendanceProvider extends ChangeNotifier {
   final AttendanceRepository _repository = AttendanceRepository();
 
@@ -209,4 +214,88 @@ class AttendanceProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  // ============ TAMBAHAN UNTUK HISTORY_SCREEN ============
+
+  bool _isLoadingHistory = false;
+  bool get isLoadingHistory => _isLoadingHistory;
+
+  List<AttendanceModel> _historyList = [];
+  List<AttendanceModel> get historyList => _historyList;
+
+  int _periodHadir = 0;
+  int _periodTerlambat = 0;
+  int _periodIzin = 0;
+  int _periodAbsen = 0;
+
+  int get periodHadir => _periodHadir;
+  int get periodTerlambat => _periodTerlambat;
+  int get periodIzin => _periodIzin;
+  int get periodAbsen => _periodAbsen;
+
+  void _recalculatePeriodStats() {
+    _periodHadir = _historyList.where((a) => a.status == 'hadir').length;
+    _periodTerlambat =
+        _historyList.where((a) => a.status == 'terlambat').length;
+    _periodIzin = _historyList
+        .where((a) => a.status == 'izin' || a.status == 'cuti')
+        .length;
+    _periodAbsen = _historyList.where((a) => a.status == 'absen').length;
+  }
+
+  /// Muat riwayat absensi berdasarkan filter cepat (Hari Ini/Minggu Ini/
+  /// Bulan Ini). Dipakai oleh history_screen.dart.
+  Future<void> loadHistoryByFilter({
+    required AttendanceHistoryFilter filter,
+  }) async {
+    final now = DateTime.now();
+    late DateTime start;
+    final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    switch (filter) {
+      case AttendanceHistoryFilter.today:
+        start = DateTime(now.year, now.month, now.day);
+        break;
+      case AttendanceHistoryFilter.thisWeek:
+        final mondayThisWeek = now.subtract(Duration(days: now.weekday - 1));
+        start = DateTime(
+          mondayThisWeek.year,
+          mondayThisWeek.month,
+          mondayThisWeek.day,
+        );
+        break;
+      case AttendanceHistoryFilter.thisMonth:
+        start = DateTime(now.year, now.month, 1);
+        break;
+    }
+
+    await loadHistoryByRange(start: start, end: end);
+  }
+
+  /// Muat riwayat absensi berdasarkan rentang tanggal custom (dari
+  /// showDateRangePicker di history_screen.dart).
+  Future<void> loadHistoryByRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final uid = _uid;
+    if (uid == null) return;
+
+    _isLoadingHistory = true;
+    notifyListeners();
+
+    try {
+      _historyList = await _repository.getByRange(uid, start, end);
+      // Urutkan terbaru dulu di paling atas, sesuai desain UI.
+      _historyList.sort((a, b) => b.date.compareTo(a.date));
+      _recalculatePeriodStats();
+    } catch (e) {
+      debugPrint('Load history error: $e');
+    } finally {
+      _isLoadingHistory = false;
+      notifyListeners();
+    }
+  }
+
+  // ============ END TAMBAHAN ============
 }
