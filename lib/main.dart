@@ -12,6 +12,9 @@ import 'providers/notification_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/leave/leave_form_screen.dart'; 
+import '../../screens/admin/admin_dashboard_screen.dart';
+import '../../screens/admin/office_setting_screen.dart';
+import '../../screens/admin/employee_management_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +54,9 @@ class MyApp extends StatelessWidget {
           AppRoutes.login: (_) => const LoginScreen(),
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.history: (_) => const HistoryScreen(),
+          AppRoutes.adminDashboard:(_) => const AdminDashboardScreen(), 
+          AppRoutes.officeSetting:(_) => const OfficeSettingScreen(),
+          AppRoutes.employeeManagement:(_) => const EmployeeManagementScreen(),
           // 2. DAFTARKAN ROUTE LEAVE FORM DI SINI
           AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
         },
