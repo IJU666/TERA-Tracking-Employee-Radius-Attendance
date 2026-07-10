@@ -12,9 +12,10 @@ import 'providers/notification_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/leave/leave_form_screen.dart'; 
-import '../../screens/admin/admin_dashboard_screen.dart';
-import '../../screens/admin/office_setting_screen.dart';
-import '../../screens/admin/employee_management_screen.dart';
+import 'screens/admin/admin_dashboard_screen.dart';
+import 'screens/admin/office_setting_screen.dart';
+import 'screens/admin/employee_management_screen.dart';
+import 'screens/admin/leave_approval_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,33 +37,29 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
-        title: 'TERA - Absensce Application',
-        debugShowCheckedModeBanner: false,
+        title: 'GeoAbsen',
         theme: ThemeData(
+          primaryColor: AppColors.primary,
           scaffoldBackgroundColor: AppColors.background,
+          fontFamily: 'PlusJakartaSans',
           colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
           useMaterial3: true,
         ),
-
-        // Sementara initialRoute langsung ke login karena splash_screen.dart
-        // belum dibuat (lihat PROGRESS.md). Setelah splash_screen ada,
-        // ganti initialRoute jadi AppRoutes.splash.
+        debugShowCheckedModeBanner: false,
         initialRoute: AppRoutes.login,
-
-        // Hanya route yang screen-nya sudah dibuat yang didaftarkan di sini.
+        
         routes: {
           AppRoutes.login: (_) => const LoginScreen(),
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.history: (_) => const HistoryScreen(),
-          AppRoutes.adminDashboard:(_) => const AdminDashboardScreen(), 
-          AppRoutes.officeSetting:(_) => const OfficeSettingScreen(),
-          AppRoutes.employeeManagement:(_) => const EmployeeManagementScreen(),
-          // 2. DAFTARKAN ROUTE LEAVE FORM DI SINI
+          AppRoutes.adminDashboard: (_) => const AdminDashboardScreen(), 
+          AppRoutes.officeSetting: (_) => const OfficeSettingScreen(),
+          AppRoutes.employeeManagement: (_) => const EmployeeManagementScreen(),
           AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
+          AppRoutes.leaveApproval: (_) => const LeaveApprovalScreen(), 
         },
 
-        // Fallback supaya app tidak crash kalau ada route yang dipanggil
-        // tapi screen-nya belum didaftarkan di atas
+        // Fallback jika ada route yang tidak terdefinisi
         onUnknownRoute: (settings) {
           return MaterialPageRoute(
             builder: (context) => Scaffold(

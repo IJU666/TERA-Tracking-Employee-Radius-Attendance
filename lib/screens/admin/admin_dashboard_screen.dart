@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // <--- Tambahkan import Auth untuk nama login
+import 'package:firebase_auth/firebase_auth.dart'; 
 import 'package:tugas_besar/screens/notification/notification_screen.dart';
 import '../../core/routes/app_routes.dart';
 
@@ -120,7 +120,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         subtitle: 'karyawan aktif hari ini',
                         bgColor: const Color(0xFFE3F2FD),
                         textColor: const Color(0xFF1565C0),
-                        onTap: () => Navigator.pushNamed(context, AppRoutes.employeeManagement),
+                        onTap: () {},
                       ),
                     ),
                     const SizedBox(width: 16),
