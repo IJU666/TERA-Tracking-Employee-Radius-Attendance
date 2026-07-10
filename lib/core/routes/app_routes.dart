@@ -23,9 +23,10 @@ class AppRoutes {
   static const String employeeManagement = '/employee-management';
   static const String employeeForm = '/employee-form';
   static const String employeeDetail = '/employee-detail';
+  static const String changePassword = '/change-password';
   
   // Variabel rute untuk AdminSettingScreen yang sudah ada di file Anda
   static const String AdminSettingScreen = '/admin-setting';
 
   static const String notification = '/notification';
-}
+} 

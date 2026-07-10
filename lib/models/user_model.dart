@@ -31,7 +31,7 @@ class UserModel {
       divisi: map['divisi'] ?? '',
       jabatan: map['jabatan'] ?? '',
       role: map['role'] ?? 'karyawan',
-      fotoUrl: map['fotoUrl'],
+      fotoUrl: map['avatarUrl'] ?? '',
     );
   }
 

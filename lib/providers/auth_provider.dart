@@ -3,7 +3,7 @@ import '../core/constants/app_strings.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/user_repository.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository();
   final UserRepository _userRepository = UserRepository();
@@ -100,6 +100,52 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint("❌ ERROR FORGOT PASSWORD: $e");
       return AppStrings.errorUnknown;
+    }
+  }
+  
+
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Ambil user Firebase yang sedang login
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) {
+        return "Pengguna tidak terdeteksi. Silakan login ulang.";
+      }
+
+      // Step 1: Autentikasi ulang (wajib dari Firebase sebelum ganti password)
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // Step 2: Update password baru
+      await user.updatePassword(newPassword);
+
+      // Step 3: Logout otomatis (opsional, karena user sudah ubah password)
+      await logout();
+
+      return null; // Sukses
+    } on FirebaseAuthException catch (e) {
+      debugPrint("❌ ERROR CHANGE PASSWORD: ${e.code}");
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        return "Password saat ini salah.";
+      } else if (e.code == 'weak-password') {
+        return "Password baru terlalu lemah.";
+      }
+      return "Gagal mengubah password: ${e.message}";
+    } catch (e) {
+      debugPrint("❌ ERROR CHANGE PASSWORD UNKNOWN: $e");
+      return "Terjadi kesalahan tidak terduga.";
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 }

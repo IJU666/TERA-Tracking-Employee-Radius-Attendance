@@ -4,10 +4,10 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/routes/app_routes.dart';
 import '../../providers/auth_provider.dart';
-import '../attendance/history_screen.dart';
 import '../leave/leave_form_screen.dart';
 import '../widgets/confirm_dialog.dart';
 import 'edit_profile_screen.dart';
+import 'change_password_screen.dart';
 
 class SettingScreen extends StatelessWidget {
   const SettingScreen({super.key});
@@ -58,12 +58,7 @@ class SettingScreen extends StatelessWidget {
                 icon: Icons.calendar_month_outlined,
                 iconColor: AppColors.primary,
                 label: 'Riwayat Absensi',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                  );
-                },
+                onTap: () => _comingSoon(context),
               ),
               _MenuItemData(
                 icon: Icons.event_busy_outlined,
@@ -96,7 +91,12 @@ class SettingScreen extends StatelessWidget {
                 icon: Icons.lock_outline_rounded,
                 iconColor: AppColors.primary,
                 label: 'Ganti Password',
-                onTap: () => _comingSoon(context),
+                 onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                  );
+                },
               ),
               _MenuItemData(
                 icon: Icons.notifications_none_rounded,
@@ -120,6 +120,12 @@ class SettingScreen extends StatelessWidget {
                     applicationVersion: '1.0.0',
                   );
                 },
+              ),
+              _MenuItemData(
+                icon: Icons.help_outline_rounded,
+                iconColor: AppColors.primary,
+                label: 'Bantuan',
+                onTap: () => _comingSoon(context),
               ),
             ]),
             const SizedBox(height: 20),

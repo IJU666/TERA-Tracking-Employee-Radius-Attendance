@@ -26,12 +26,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     try {
       User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Jika nama ada di profil Firebase Auth
         if (user.displayName != null && user.displayName!.isNotEmpty) {
           setState(() => _adminName = user.displayName!);
         } else {
-          // Atau jika Anda menyimpan data admin di koleksi 'karyawan' / 'users' di Firestore
-          var adminDoc = await FirebaseFirestore.instance.collection('karyawan').doc(user.uid).get();
+          // PERBAIKAN: Mengubah koleksi dari 'karyawan' menjadi 'users' sesuai Firestore Anda
+          var adminDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
           if (adminDoc.exists && adminDoc.data()?['nama'] != null) {
             setState(() => _adminName = adminDoc.data()?['nama']);
           }
@@ -68,16 +67,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.black, size: 28),
-            onPressed: () => Navigator.push(context, 
-            MaterialPageRoute(builder: (context) => const NotificationScreen()),
-            )
+            onPressed: () => Navigator.push(
+              context, 
+              MaterialPageRoute(builder: (context) => const NotificationScreen()),
+            ),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      // MENGGUNAKAN STREAMBUILDER UTAMA AGAR KARTU GRID TERUPDATE REALTIME DARI DATABASE
+      // PERBAIKAN: Mengubah stream koleksi utama dari 'karyawan' menjadi 'users'
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('karyawan').snapshots(),
+        stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {
           int totalKaryawan = 0;
           int akunAktif = 0; // Karyawan dengan status 'Hadir' hari ini
@@ -115,7 +115,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: _buildGridCard(
                         icon: Icons.person_add_alt_1_outlined,
-                        count: '$akunAktif', // Mengambil data hadir dari Firebase
+                        count: '$akunAktif',
                         title: 'Akun Aktif',
                         subtitle: 'karyawan aktif hari ini',
                         bgColor: const Color(0xFFE3F2FD),
@@ -127,7 +127,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     Expanded(
                       child: _buildGridCard(
                         icon: Icons.people_alt_outlined,
-                        count: '$totalKaryawan', // Mengambil total dari Firebase
+                        count: '$totalKaryawan',
                         title: 'Total Karyawan',
                         subtitle: 'total terdaftar',
                         bgColor: const Color(0xFFE8F5E9),
@@ -141,10 +141,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Row(
                   children: [
                     Expanded(
-                      // STREAMBUILDER KHUSUS UNTUK MENGHITUNG PENGAJUAN CUTI YANG PENDING
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
-                            .collection('cuti_izin') // Sesuaikan nama koleksi cuti di Firebase Anda
+                            .collection('cuti_izin') 
                             .where('status', isEqualTo: 'Pending')
                             .snapshots(),
                         builder: (context, cutiSnapshot) {
@@ -155,7 +154,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
                           return _buildGridCard(
                             icon: Icons.calendar_today_outlined,
-                            count: '$totalCutiPending', // Mengambil jumlah cuti pending
+                            count: '$totalCutiPending',
                             title: 'Cuti & Izin',
                             subtitle: 'pengajuan pending',
                             bgColor: const Color(0xFFFFF3E0),
@@ -241,7 +240,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // Menampilkan daftar riwayat aktivitas karyawan terbaru yang didapat dari database
                 if (snapshot.connectionState == ConnectionState.waiting)
                   const Center(child: CircularProgressIndicator())
                 else if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
@@ -249,7 +247,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 else
                   Builder(
                     builder: (context) {
-                      // Ambil karyawan yang statusnya selain 'Tidak Hadir' sebagai log aktivitas sederhana
                       var aktifDocs = snapshot.data!.docs.where((d) {
                         var data = d.data() as Map<String, dynamic>;
                         return data['statusHariIni'] != 'Tidak Hadir';
@@ -262,7 +259,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       return ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: aktifDocs.length > 3 ? 3 : aktifDocs.length, // Batasi maks 3 baris di dashboard
+                        itemCount: aktifDocs.length > 3 ? 3 : aktifDocs.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           var data = aktifDocs[index].data() as Map<String, dynamic>;
@@ -286,7 +283,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // Custom Floating Action Button & Bottom Navigation Bar
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
         onPressed: () => Navigator.pushNamed(context, AppRoutes.employeeManagement),
@@ -307,14 +303,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: Icon(Icons.home, color: _currentIndex == 0 ? const Color(0xFF0D47A1) : Colors.grey),
                 onPressed: () => setState(() => _currentIndex = 0),
               ),
-              const SizedBox(width: 40), // Spacer untuk FloatingActionButton di tengah
+              const SizedBox(width: 40),
               IconButton(
                 icon: Icon(Icons.settings, color: _currentIndex == 1 ? const Color(0xFF0D47A1) : Colors.grey),
                 onPressed: () {
                   setState(() => _currentIndex = 1);
-                  // UBAH: Dari AppRoutes.setting menjadi AppRoutes.AdminSettingScreen
+                  // PERBAIKAN: Mengarahkan navigasi langsung ke AdminSettingScreen rute baru Anda
                   Navigator.pushNamed(context, AppRoutes.AdminSettingScreen).then((_) {
-                    // Opsional: Kembalikan state index ke home saat kembali dari halaman setting
                     setState(() => _currentIndex = 0);
                   });
                 },
