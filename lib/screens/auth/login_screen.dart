@@ -47,7 +47,19 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (error == null) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      // Ambil data user yang baru saja berhasil login
+      final user = authProvider.currentUser;
+
+      if (user != null) {
+        if (user.isAdmin) {
+          // Jika admin, arahkan ke dashboard admin
+          // Catatan: Pastikan 'adminDashboard' sudah didaftarkan di AppRoutes kamu
+          Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+        } else {
+          // Jika karyawan biasa, arahkan ke halaman home utama
+          Navigator.pushReplacementNamed(context, AppRoutes.home);
+        }
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

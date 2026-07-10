@@ -114,7 +114,17 @@ class _HomeContent extends StatelessWidget {
           child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 10),
-        const Column(
+GestureDetector(
+        onLongPress: () {
+          // Ketika tulisan TERA ditekan lama, otomatis masuk ke menu admin
+          Navigator.pushNamed(context, AppRoutes.adminDashboard); 
+          
+          // Opsional: Beri snackbar pengingat
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bypass Mode: Masuk Ke Dashboard Admin')),
+          );
+        },
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
@@ -126,11 +136,12 @@ class _HomeContent extends StatelessWidget {
               ),
             ),
             Text(
-              'Absensce Application',
+              'Absensce Application', // (Typo bawaan: Absence)
               style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
         ),
+      ),
         const Spacer(),
         Stack(
           clipBehavior: Clip.none,
