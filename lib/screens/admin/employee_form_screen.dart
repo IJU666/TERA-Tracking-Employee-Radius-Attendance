@@ -55,11 +55,14 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         'email': _emailController.text.trim(),
         'divisi': _divisiController.text.trim(),
         'jabatan': _jabatanController.text.trim(),
-        // Diubah menjadi huruf kecil agar seragam dengan data di gambar (contoh: 'admin')
         'role': _selectedRole.toLowerCase(), 
         'statusHariIni': 'Tidak Hadir',
         'avatarUrl': 'https://via.placeholder.com/150',
         'createdAt': FieldValue.serverTimestamp(),
+        // ---------- TAMBAHAN DEFAULT CUTI MULAI DI SINI ----------
+        'sisa_cuti': 14,
+        'total_cuti': 14,
+        // ---------- TAMBAHAN DEFAULT CUTI SELESAI DI SINI ----------
         'ringkasanBulanan': {
           'hadir': 0,
           'telat': 0,
@@ -179,7 +182,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                             ),
-                            // Memastikan opsi role tertulis jelas
                             items: ['Karyawan', 'Admin'].map((role) {
                               return DropdownMenuItem(value: role, child: Text(role));
                             }).toList(),
