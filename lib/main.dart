@@ -15,6 +15,7 @@ import 'screens/leave/leave_form_screen.dart';
 import '../../screens/admin/admin_dashboard_screen.dart';
 import '../../screens/admin/office_setting_screen.dart';
 import '../../screens/admin/employee_management_screen.dart';
+import '../../screens/attendance/absen_result_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,12 @@ class MyApp extends StatelessWidget {
           AppRoutes.adminDashboard:(_) => const AdminDashboardScreen(), 
           AppRoutes.officeSetting:(_) => const OfficeSettingScreen(),
           AppRoutes.employeeManagement:(_) => const EmployeeManagementScreen(),
+          AppRoutes.absenResult: (_) => const AbsenResultScreen(
+                success: true,
+                isCheckOut: false,
+                latitude: 0.0,
+                longitude: 0.0,
+              ),
           // 2. DAFTARKAN ROUTE LEAVE FORM DI SINI
           AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
         },
