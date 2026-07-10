@@ -15,10 +15,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = '';
 
-  // Variabel penentu posisi seret (drag) tombol kotak +
-  Offset _fabPosition = const Offset(0, 0);
-  bool _isFabInitialized = false;
-
   @override
   void dispose() {
     _searchController.dispose();
@@ -27,13 +23,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Inisialisasi letak tombol kotak + pertama kali di kanan bawah layar gadget
-    if (!_isFabInitialized) {
-      final size = MediaQuery.of(context).size;
-      _fabPosition = Offset(size.width - 76, size.height - 130); 
-      _isFabInitialized = true;
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -41,178 +30,159 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF0D47A1)),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () {
+            // Perbaikan tombol back
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.of(context).pop(); // Fallback langsung pop jika routes standar
+            }
+          },
         ),
         title: const Text(
           'Kelola Karyawan',
           style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold, fontSize: 18),
         ),
-        actions: const [
-          Icon(Icons.notifications_none, color: Colors.black54),
-          SizedBox(width: 12),
-          CircleAvatar(
-            radius: 16,
-            backgroundImage: NetworkImage('https://via.placeholder.com/150'),
-          ),
-          SizedBox(width: 16),
-        ],
       ),
-      body: Stack(
-        children: [
-          StreamBuilder(
-            stream: FirebaseFirestore.instance.collection('karyawan').snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('Tidak ada data karyawan.'));
-              }
+      floatingActionButton: FloatingActionButton(
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)), 
+        ),
+        backgroundColor: const Color(0xFF0D47A1),
+        onPressed: () {
+          Navigator.push(
+            context,
+            PageRouteBuilder(
+              opaque: false,
+              pageBuilder: (context, _, __) => const EmployeeFormScreen(),
+              transitionsBuilder: (context, animation, _, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
+          );
+        },
+        child: const Icon(Icons.add, color: Colors.white, size: 30),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .where('role', isEqualTo: 'karyawan')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('Tidak ada data karyawan.'));
+          }
 
-              var docs = snapshot.data!.docs;
+          var docs = snapshot.data!.docs;
 
-              int total = docs.length;
-              int hadir = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Hadir').length;
-              int absen = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Tidak Hadir').length;
+          int total = docs.length;
+          int hadir = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Hadir').length;
+          int absen = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Tidak Hadir').length;
 
-              // Filter berdasarkan Tab & Search Bar
-              var filteredDocs = docs.where((d) {
-                var data = d.data() as Map<String, dynamic>;
-                String nama = (data['nama'] ?? '').toString().toLowerCase();
-                String nik = (data['nik'] ?? '').toString().toLowerCase();
-                bool matchesSearch = nama.contains(searchQuery.toLowerCase()) || nik.contains(searchQuery.toLowerCase());
+          var filteredDocs = docs.where((d) {
+            var data = d.data() as Map<String, dynamic>;
+            String nama = (data['nama'] ?? '').toString().toLowerCase();
+            String nik = (data['nik'] ?? '').toString().toLowerCase();
+            bool matchesSearch = nama.contains(searchQuery.toLowerCase()) || nik.contains(searchQuery.toLowerCase());
 
-                if (!matchesSearch) return false;
+            if (!matchesSearch) return false;
 
-                if (selectedFilter == 'Semua') return true;
-                if (selectedFilter == 'Hadir') return data['statusHariIni'] == 'Hadir';
-                if (selectedFilter == 'Tidak Hadir') return data['statusHariIni'] == 'Tidak Hadir';
-                if (selectedFilter == 'Cuti/') return data['statusHariIni'] == 'Izin/Cuti';
-                return true;
-              }).toList();
+            if (selectedFilter == 'Semua') return true;
+            if (selectedFilter == 'Hadir') return data['statusHariIni'] == 'Hadir';
+            if (selectedFilter == 'Tidak Hadir') return data['statusHariIni'] == 'Tidak Hadir';
+            if (selectedFilter == 'Cuti/') return data['statusHariIni'] == 'Izin/Cuti';
+            return true;
+          }).toList();
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(child: _buildSummaryCard('$total', 'TOTAL', const Color(0xFFF1F3F9), const Color(0xFF0D47A1))),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildSummaryCard('$hadir', 'HADIR', const Color(0xFFE8F5E9), const Color(0xFF2E7D32))),
-                        const SizedBox(width: 8),
-                        Expanded(child: _buildSummaryCard('$absen', 'ABSEN', const Color(0xFFFFEBEE), const Color(0xFFC62828))),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _searchController,
-                      onChanged: (value) {
-                        setState(() {
-                          searchQuery = value;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Cari nama atau NIK...',
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                        fillColor: const Color(0xFFF1F3F4),
-                        filled: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: ['Semua', 'Hadir', 'Tidak Hadir', 'Cuti/'].map((filter) {
-                          bool isSelected = selectedFilter == filter;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: ChoiceChip(
-                              label: Text(filter),
-                              selected: isSelected,
-                              selectedColor: const Color(0xFF0D47A1),
-                              backgroundColor: const Color(0xFFEEEEEE),
-                              labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
-                              onSelected: (bool selected) {
-                                setState(() {
-                                  selectedFilter = filter;
-                                });
-                              },
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'DAFTAR KARYAWAN (${filteredDocs.length})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2),
-                    ),
-                    const SizedBox(height: 12),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredDocs.length,
-                      itemBuilder: (context, index) {
-                        var data = filteredDocs[index].data() as Map<String, dynamic>;
-                        return _buildKaryawanCard(context, data);
-                      },
-                    ),
-                    const SizedBox(height: 80), // Jarak aman scroll agar card terbawah tidak terhalang tombol +
+                    Expanded(child: _buildSummaryCard('$total', 'TOTAL', const Color(0xFFF1F3F9), const Color(0xFF0D47A1))),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildSummaryCard('$hadir', 'HADIR', const Color(0xFFE8F5E9), const Color(0xFF2E7D32))),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildSummaryCard('$absen', 'ABSEN', const Color(0xFFFFEBEE), const Color(0xFFC62828))),
                   ],
                 ),
-              );
-            },
-          ),
-
-          // --- TOMBOL KOTAK ORIGINAL DENGAN KEMAMPUAN SERET (DRAGGABLE) ---
-          Positioned(
-            left: _fabPosition.dx,
-            top: _fabPosition.dy,
-            child: GestureDetector(
-              onPanUpdate: (details) {
-                setState(() {
-                  _fabPosition = Offset(
-                    _fabPosition.dx + details.delta.dx,
-                    _fabPosition.dy + details.delta.dy,
-                  );
-                });
-              },
-              child: FloatingActionButton(
-                // Mempertahankan bentuk persegi original kotak bawaan Anda
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(16)), 
-                ),
-                backgroundColor: const Color(0xFF0D47A1),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      opaque: false,
-                      pageBuilder: (context, _, __) => const EmployeeFormScreen(),
-                      transitionsBuilder: (context, animation, _, child) {
-                        return SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 1),
-                            end: Offset.zero,
-                  ).animate(animation),
-                          child: child,
-                        );
-                      },
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Cari nama atau NIK...',
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    fillColor: const Color(0xFFF1F3F4),
+                    filled: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
-                  );
-                },
-                child: const Icon(Icons.add, color: Colors.white, size: 30),
-              ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: ['Semua', 'Hadir', 'Tidak Hadir', 'Cuti/'].map((filter) {
+                      bool isSelected = selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(filter),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF0D47A1),
+                          backgroundColor: const Color(0xFFEEEEEE),
+                          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+                          onSelected: (bool selected) {
+                            setState(() {
+                              selectedFilter = filter;
+                            });
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'DAFTAR KARYAWAN (${filteredDocs.length})',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2),
+                ),
+                const SizedBox(height: 12),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredDocs.length,
+                  itemBuilder: (context, index) {
+                    var doc = filteredDocs[index];
+                    var data = doc.data() as Map<String, dynamic>;
+                    
+                    return _buildKaryawanCard(context, doc.id, data);
+                  },
+                ),
+                const SizedBox(height: 80), 
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -235,7 +205,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     );
   }
 
-  Widget _buildKaryawanCard(BuildContext context, Map<String, dynamic> data) {
+  Widget _buildKaryawanCard(BuildContext context, String docId, Map<String, dynamic> data) {
     Color badgeColor;
     Color textColor;
     String status = data['statusHariIni'] ?? 'Hadir';
@@ -260,7 +230,7 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EmployeeDetailScreen(karyawanData: data),
+              builder: (context) => EmployeeDetailScreen(docId: docId, karyawanData: data),
             ),
           );
         },

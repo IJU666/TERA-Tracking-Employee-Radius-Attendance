@@ -41,6 +41,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   @override
   void initState() {
     super.initState();
+    // Memuat data dari Firestore saat halaman pertama kali dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<OfficeProvider>().loadOffice();
       _applyLoadedData();
@@ -56,6 +57,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
         _radius = office.radius;
         _initializedFromData = true;
       });
+      // Peta langsung diarahkan ke lokasi kantor yang tersimpan di database
       _mapController.move(_selectedLatLng, 15);
     }
   }
@@ -74,7 +76,6 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
       setState(() => _searchResults = []);
       return;
     }
-    // Debounce 700ms supaya tidak spam request tiap ketikan (hormati rate limit Nominatim)
     _debounce = Timer(const Duration(milliseconds: 700), () => _searchPlace(query));
   }
 
@@ -91,9 +92,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
       final response = await http.get(
         uri,
         headers: {
-          // Wajib diisi sesuai kebijakan Nominatim, ganti sesuai identitas app kamu
           'User-Agent': 'TERA-Attendance-App/1.0 (contact: fauzimaulanaakbarr@gmail.com)',
-
         },
       );
 
@@ -150,7 +149,8 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? 'Pengaturan lokasi berhasil disimpan' : 'Gagal menyimpan pengaturan'),
+        content: Text(success ? 'Pengaturan lokasi berhasil disimpan ke Firestore' : 'Gagal menyimpan pengaturan'),
+        backgroundColor: success ? AppColors.success : Colors.red,
       ),
     );
     if (success) Navigator.pop(context);
@@ -158,6 +158,9 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Memantau state loading dan error dari OfficeProvider
+    final officeProvider = context.watch<OfficeProvider>();
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -171,134 +174,168 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save_outlined, color: AppColors.primary),
-            onPressed: _saving ? null : _handleSave,
+            onPressed: (_saving || officeProvider.isLoading) ? null : _handleSave,
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildMapWithSearch(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLabel('Nama Kantor'),
-                    const SizedBox(height: 8),
-                    _buildNamaField(),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('Latitude'),
-                              const SizedBox(height: 8),
-                              _buildCoordField(_selectedLatLng.latitude.toStringAsFixed(4)),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('Longitude'),
-                              const SizedBox(height: 8),
-                              _buildCoordField(_selectedLatLng.longitude.toStringAsFixed(4)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.location_searching_rounded, size: 18, color: AppColors.primary),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Radius Geofence',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            '${_radius.toInt()} m',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: AppColors.primary,
-                        inactiveTrackColor: AppColors.border,
-                        thumbColor: AppColors.primary,
-                        overlayColor: AppColors.primary.withOpacity(0.15),
-                        trackHeight: 4,
-                      ),
-                      child: Slider(
-                        value: _radius,
-                        min: 10,
-                        max: 500,
-                        onChanged: (value) => setState(() => _radius = value),
-                      ),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('10m', style: TextStyle(fontSize: 12, color: AppColors.textHint)),
-                        Text('500m', style: TextStyle(fontSize: 12, color: AppColors.textHint)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildRadiusInfo(),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        onPressed: _saving ? null : _handleSave,
-                        icon: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.cloud_upload_outlined, size: 20),
-                        label: Text(
-                          _saving ? 'Menyimpan...' : 'Simpan Pengaturan',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+      // OPTIMASI 1: Jika masih loading mengambil data dari Firestore, tampilkan Loading Indicator
+      body: officeProvider.isLoading 
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
-            ),
-          ],
-        ),
-      ),
+            )
+          // OPTIMASI 2: Jika gagal meload data (misal masalah internet), tampilkan error screen beserta tombol retry
+          : officeProvider.errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Gagal memuat data: ${officeProvider.errorMessage}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () async {
+                            await context.read<OfficeProvider>().loadOffice();
+                            _applyLoadedData();
+                          },
+                          child: const Text('Coba Lagi'),
+                        )
+                      ],
+                    ),
+                  ),
+                )
+              : SafeArea(
+                  child: Column(
+                    children: [
+                      _buildMapWithSearch(),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildLabel('Nama Kantor'),
+                              const SizedBox(height: 8),
+                              _buildNamaField(),
+                              const SizedBox(height: 20),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildLabel('Latitude'),
+                                        const SizedBox(height: 8),
+                                        _buildCoordField(_selectedLatLng.latitude.toStringAsFixed(6)), // Ditingkatkan ke 6 desimal agar koordinat lebih presisi
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _buildLabel('Longitude'),
+                                        const SizedBox(height: 8),
+                                        _buildCoordField(_selectedLatLng.longitude.toStringAsFixed(6)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.location_searching_rounded, size: 18, color: AppColors.primary),
+                                      const SizedBox(width: 6),
+                                      const Text(
+                                        'Radius Geofence',
+                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      '${_radius.toInt()} m',
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: AppColors.primary,
+                                  inactiveTrackColor: AppColors.border,
+                                  thumbColor: AppColors.primary,
+                                  overlayColor: AppColors.primary.withOpacity(0.15),
+                                  trackHeight: 4,
+                                ),
+                                child: Slider(
+                                  value: _radius,
+                                  min: 10,
+                                  max: 500,
+                                  onChanged: (value) => setState(() => _radius = value),
+                                ),
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('10m', style: TextStyle(fontSize: 12, color: AppColors.textHint)),
+                                  Text('500m', style: TextStyle(fontSize: 12, color: AppColors.textHint)),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildRadiusInfo(),
+                              const SizedBox(height: 24),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 52,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  onPressed: _saving ? null : _handleSave,
+                                  icon: _saving
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.cloud_upload_outlined, size: 20),
+                                  label: Text(
+                                    _saving ? 'Menyimpan...' : 'Simpan Pengaturan',
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 
@@ -327,7 +364,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                 children: [
                   TileLayer(
                     urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.tera.attendance', // ganti sesuai package name app kamu
+                    userAgentPackageName: 'com.tera.attendance',
                   ),
                   CircleLayer(
                     circles: [
@@ -355,7 +392,6 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
               ),
             ),
           ),
-          // Search bar
           Positioned(
             top: 0,
             left: 12,

@@ -3,7 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import '../../core/routes/app_routes.dart'; // Memastikan rute terbaca
+import '../../core/routes/app_routes.dart'; 
+import '../../providers/office_provider.dart'; // Import OfficeProvider
 
 class AbsenScreen extends StatefulWidget {
   const AbsenScreen({Key? key}) : super(key: key);
@@ -15,19 +16,45 @@ class AbsenScreen extends StatefulWidget {
 class _AbsenScreenState extends State<AbsenScreen> {
   final MapController _mapController = MapController();
 
-  final LatLng _officeLocation = const LatLng(-6.9140, 107.6090);
-  final double _officeRadius = 50.0;
+  // Definisikan default nilai fallback jika data database gagal dimuat
+  LatLng _officeLocation = const LatLng(-6.2088, 106.8456); 
+  double _officeRadius = 50.0;
+  String _officeName = 'Kantor';
 
   LatLng? _currentLocation;
-  bool _isLoading = true;
+  bool _isLoadingLocation = true;
   String? _errorMessage;
+  bool _initializedMapCenter = false;
 
   @override
   void initState() {
     super.initState();
-    _refreshLocation();
+    // 1. Ambil data kantor dari Firestore via OfficeProvider di awal frame terpasang
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final officeProvider = context.read<OfficeProvider>();
+      await officeProvider.loadOffice();
+      _applyOfficeData();
+      _refreshLocation();
+    });
   }
 
+  // Ambil nilai dari provider ke local state screen
+  void _applyOfficeData() {
+    final office = context.read<OfficeProvider>().office;
+    if (office != null) {
+      setState(() {
+        _officeLocation = LatLng(office.latitude, office.longitude);
+        _officeRadius = office.radius;
+        _officeName = office.nama;
+      });
+      // Pindahkan fokus kamera ke kantor jika lokasi user belum ditemukan
+      if (!_initializedMapCenter) {
+        _mapController.move(_officeLocation, 16);
+      }
+    }
+  }
+
+  // Hitung jarak dinamis antara lokasi user saat ini dan koordinat kantor dari database
   double get _distance {
     if (_currentLocation == null) return double.infinity;
     return Geolocator.distanceBetween(
@@ -44,7 +71,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
+      _isLoadingLocation = true;
       _errorMessage = null;
     });
 
@@ -76,32 +103,31 @@ class _AbsenScreenState extends State<AbsenScreen> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
-      if (!mounted)
-        return; // Mencegah memory leak/crash jika user sudah klik back saat loading
+      if (!mounted) return;
 
       final userLatLng = LatLng(position.latitude, position.longitude);
 
       setState(() {
         _currentLocation = userLatLng;
+        _initializedMapCenter = true;
       });
 
-      _mapController.move(userLatLng, 17);
+      // Fokuskan kamera ke lokasi user setelah ditemukan
+      _mapController.move(userLatLng, 16);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoadingLocation = false);
     }
   }
 
-  // Fungsi navigasi kustom untuk kembali ke beranda dengan aman
   void _handleBackOrCancel() {
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     } else {
-      // Menyetel ulang sistem route ke Home agar BottomNavbar kembali ke indeks 0 (Beranda)
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.home,
@@ -111,24 +137,26 @@ class _AbsenScreenState extends State<AbsenScreen> {
   }
 
   void _submitAttendance() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Absen berhasil disimpan!')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Absen masuk berhasil di posisi $_officeName!')),
+    );
     _handleBackOrCancel();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Memantau state loading dari database office
+    final officeLoading = context.watch<OfficeProvider>().isLoading;
+    
     final distance = _distance;
     final isWithinRadius = _isWithinRadius;
     final hasLocation = _currentLocation != null;
 
     return PopScope(
-      canPop:
-          false, // KUNCI UTAMA: Menahan tombol back fisik HP / swipe gesture back agar tidak menutup root app
+      canPop: false, 
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
-        _handleBackOrCancel(); // Jalankan fungsi kustom kita untuk mengarahkan kembali ke Home
+        _handleBackOrCancel(); 
       },
       child: Scaffold(
         backgroundColor: Colors.white,
@@ -138,7 +166,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
           centerTitle: true,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
-            onPressed: _handleBackOrCancel, // Mengarah ke fungsi baru yang aman
+            onPressed: _handleBackOrCancel,
           ),
           title: const Text(
             'Absen Masuk',
@@ -149,364 +177,314 @@ class _AbsenScreenState extends State<AbsenScreen> {
             ),
           ),
         ),
-        body: Stack(
-          children: [
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: MediaQuery.of(context).size.height * 0.45,
-              child: Stack(
-                children: [
-                  FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _officeLocation,
-                      initialZoom: 17,
-                    ),
+        body: officeLoading 
+          ? const Center(child: CircularProgressIndicator()) // Tampilkan loading jika data database sedang ditarik
+          : Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: MediaQuery.of(context).size.height * 0.45,
+                  child: Stack(
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.tugasBesar',
-                      ),
-                      CircleLayer(
-                        circles: [
-                          CircleMarker(
-                            point: _officeLocation,
-                            radius: _officeRadius,
-                            useRadiusInMeter: true,
-                            color: Colors.blue.withOpacity(0.2),
-                            borderColor: Colors.blue,
-                            borderStrokeWidth: 1,
-                          ),
-                        ],
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: _officeLocation,
-                            width: 40,
-                            height: 40,
-                            child: const Icon(
-                              Icons.location_city,
-                              color: Colors.red,
-                              size: 36,
-                            ),
-                          ),
-                          if (hasLocation)
-                            Marker(
-                              point: _currentLocation!,
-                              width: 40,
-                              height: 40,
-                              child: const Icon(
-                                Icons.person_pin_circle,
-                                color: Colors.green,
-                                size: 36,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (_isLoading)
-                    Container(
-                      color: Colors.black26,
-                      child: const Center(child: CircularProgressIndicator()),
-                    ),
-                ],
-              ),
-            ),
-
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.gps_fixed, color: Colors.white, size: 16),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Radius: ${_officeRadius.toInt()} m',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: MediaQuery.of(context).size.height * 0.52,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 10,
-                      offset: Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(10),
+                      FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _officeLocation,
+                          initialZoom: 16,
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    const Text(
-                      'Posisi Kamu',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    if (_errorMessage != null)
-                      Row(
                         children: [
-                          Icon(
-                            Icons.error_outline,
-                            size: 20,
-                            color: Colors.red.shade700,
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.example.tugasBesar',
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              _errorMessage!,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.red.shade700,
+                          CircleLayer(
+                            circles: [
+                              CircleMarker(
+                                point: _officeLocation,
+                                radius: _officeRadius,
+                                useRadiusInMeter: true,
+                                color: Colors.blue.withOpacity(0.2),
+                                borderColor: Colors.blue,
+                                borderStrokeWidth: 1.5,
                               ),
-                            ),
+                            ],
                           ),
-                        ],
-                      )
-                    else if (!hasLocation)
-                      Row(
-                        children: const [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          SizedBox(width: 8),
-                          Text('Mencari lokasi kamu...'),
-                        ],
-                      )
-                    else
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.near_me_outlined,
-                            size: 20,
-                            color: isWithinRadius
-                                ? Colors.green.shade700
-                                : Colors.red.shade700,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${distance.toInt()} meter dari kantor',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: isWithinRadius
-                                  ? Colors.green.shade700
-                                  : Colors.red.shade700,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    const SizedBox(height: 16),
-
-                    if (hasLocation)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isWithinRadius
-                              ? Colors.green.shade50
-                              : Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isWithinRadius
-                                ? Colors.green.shade200
-                                : Colors.red.shade200,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isWithinRadius
-                                  ? Icons.check_circle
-                                  : Icons.cancel,
-                              color: isWithinRadius
-                                  ? Colors.green.shade700
-                                  : Colors.red.shade700,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isWithinRadius
-                                        ? 'Dalam Radius'
-                                        : 'Di Luar Radius',
-                                    style: TextStyle(
-                                      color: isWithinRadius
-                                          ? Colors.green.shade800
-                                          : Colors.red.shade800,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    isWithinRadius
-                                        ? 'Kamu bisa melakukan absen sekarang.'
-                                        : 'Mendekatlah ke area kantor untuk absen.',
-                                    style: TextStyle(
-                                      color: isWithinRadius
-                                          ? Colors.green.shade700
-                                          : Colors.red.shade700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.my_location,
-                            size: 20,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              hasLocation
-                                  ? 'Lat: ${_currentLocation!.latitude.toStringAsFixed(4)} • Long: ${_currentLocation!.longitude.toStringAsFixed(4)}'
-                                  : 'Lokasi belum tersedia',
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          if (_isLoading)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          else
-                            InkWell(
-                              onTap: _refreshLocation,
-                              child: const Text(
-                                'Refresh',
-                                style: TextStyle(
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.bold,
+                          MarkerLayer(
+                            markers: [
+                              // Pin Lokasi Kantor dari database
+                              Marker(
+                                point: _officeLocation,
+                                width: 45,
+                                height: 45,
+                                child: const Icon(
+                                  Icons.location_city,
+                                  color: Colors.red,
+                                  size: 36,
                                 ),
                               ),
-                            ),
+                              // Pin Lokasi Karyawan
+                              if (hasLocation)
+                                Marker(
+                                  point: _currentLocation!,
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(
+                                    Icons.person_pin_circle,
+                                    color: Colors.green,
+                                    size: 38,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ],
                       ),
-                    ),
-                    const Spacer(),
+                      if (_isLoadingLocation)
+                        Container(
+                          color: Colors.black26,
+                          child: const Center(child: CircularProgressIndicator()),
+                        ),
+                    ],
+                  ),
+                ),
 
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton.icon(
-                        onPressed: (hasLocation && isWithinRadius)
-                            ? _submitAttendance
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
-                          disabledBackgroundColor: Colors.grey.shade300,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                Positioned(
+                  top: 16,
+                  right: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.gps_fixed, color: Colors.white, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Radius: ${_officeRadius.toInt()} m',
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Container(
+                    height: MediaQuery.of(context).size.height * 0.52,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 10,
+                          offset: Offset(0, -2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
-                          elevation: 0,
                         ),
-                        icon: const Icon(
-                          Icons.fingerprint,
-                          color: Colors.white,
-                        ),
-                        label: const Text(
-                          'Konfirmasi Absen Masuk',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
+                        const SizedBox(height: 20),
+
+                        Text(
+                          _officeName, // Menampilkan nama kantor dari database (contoh: "UMB")
+                          style: const TextStyle(
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Posisi Kamu Sekarang',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 12),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed:
-                            _handleBackOrCancel, // Mengarah ke fungsi aman kustom
-                        child: const Text(
-                          'Batal',
-                          style: TextStyle(
-                            color: Colors.black54,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        if (_errorMessage != null)
+                          Row(
+                            children: [
+                              Icon(Icons.error_outline, size: 20, color: Colors.red.shade700),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(fontSize: 14, color: Colors.red.shade700),
+                                ),
+                              ),
+                            ],
+                          )
+                        else if (!hasLocation)
+                          Row(
+                            children: const [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              SizedBox(width: 8),
+                              Text('Mencari lokasi kamu...'),
+                            ],
+                          )
+                        else
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.near_me_outlined,
+                                size: 20,
+                                color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${distance.toInt()} meter dari kantor',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 16),
+
+                        if (hasLocation)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isWithinRadius ? Colors.green.shade50 : Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isWithinRadius ? Colors.green.shade200 : Colors.red.shade200,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isWithinRadius ? Icons.check_circle : Icons.cancel,
+                                  color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                  size: 32,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        isWithinRadius ? 'Dalam Radius' : 'Di Luar Radius',
+                                        style: TextStyle(
+                                          color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        isWithinRadius
+                                            ? 'Kamu bisa melakukan absen sekarang.'
+                                            : 'Mendekatlah ke area area kantor untuk absen.',
+                                        style: TextStyle(
+                                          color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.my_location, size: 20, color: Colors.grey),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  hasLocation
+                                      ? 'Lat: ${_currentLocation!.latitude.toStringAsFixed(5)} • Long: ${_currentLocation!.longitude.toStringAsFixed(5)}'
+                                      : 'Lokasi belum tersedia',
+                                  style: const TextStyle(color: Colors.black87, fontSize: 13),
+                                ),
+                              ),
+                              if (_isLoadingLocation)
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              else
+                                InkWell(
+                                  onTap: _refreshLocation,
+                                  child: const Text(
+                                    'Refresh',
+                                    style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
+                        const Spacer(),
+
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton.icon(
+                            onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation)
+                                ? _submitAttendance
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade700,
+                              disabledBackgroundColor: Colors.grey.shade300,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.fingerprint, color: Colors.white),
+                            label: const Text(
+                              'Konfirmasi Absen Masuk',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton(
+                            onPressed: _handleBackOrCancel,
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
       ),
     );
   }

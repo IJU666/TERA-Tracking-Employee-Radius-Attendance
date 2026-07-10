@@ -1,9 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class OfficeModel {
   final String id;
   final String nama;
   final double latitude;
   final double longitude;
   final double radius; // dalam meter
+  final DateTime? updatedAt; // Tambahan untuk tracking perubahan terakhir
 
   const OfficeModel({
     required this.id,
@@ -11,6 +14,7 @@ class OfficeModel {
     required this.latitude,
     required this.longitude,
     required this.radius,
+    this.updatedAt,
   });
 
   OfficeModel copyWith({
@@ -19,6 +23,7 @@ class OfficeModel {
     double? latitude,
     double? longitude,
     double? radius,
+    DateTime? updatedAt,
   }) {
     return OfficeModel(
       id: id ?? this.id,
@@ -26,6 +31,7 @@ class OfficeModel {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       radius: radius ?? this.radius,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -33,9 +39,14 @@ class OfficeModel {
     return OfficeModel(
       id: id,
       nama: map['nama'] ?? '-',
-      latitude: (map['latitude'] ?? 0).toDouble(),
-      longitude: (map['longitude'] ?? 0).toDouble(),
-      radius: (map['radius'] ?? 50).toDouble(),
+      // Amankan casting menggunakan 'as num?' sebelum diubah ke double
+      // Ini mencegah crash jika Firestore tidak sengaja menyimpannya sebagai int
+      latitude: (map['latitude'] as num? ?? 0.0).toDouble(),
+      longitude: (map['longitude'] as num? ?? 0.0).toDouble(),
+      radius: (map['radius'] as num? ?? 50.0).toDouble(),
+      updatedAt: map['updatedAt'] != null 
+          ? (map['updatedAt'] as Timestamp).toDate() 
+          : null,
     );
   }
 
@@ -45,6 +56,8 @@ class OfficeModel {
       'latitude': latitude,
       'longitude': longitude,
       'radius': radius,
+      // Otomatis mencatat waktu server Firebase saat data disimpan/diubah
+      'updatedAt': FieldValue.serverTimestamp(),
     };
   }
-} 
+}

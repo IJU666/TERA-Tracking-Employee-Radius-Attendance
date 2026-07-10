@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/office_model.dart';
 import '../repositories/office_repository.dart';
 
@@ -20,6 +19,7 @@ class OfficeProvider extends ChangeNotifier {
 
   Future<void> loadOffice() async {
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     try {
@@ -52,18 +52,20 @@ class OfficeProvider extends ChangeNotifier {
         radius: radius,
       );
 
+      // 1. Simpan data baru ke Firestore
       await _repository.updateOffice(updated);
-      _office = updated;
+      
+      // 2. Ambil ulang data dari Firestore agar 'updatedAt' dari server tersinkron ke lokal
+      _office = await _repository.getOffice();
 
-      _isSaving = false;
-      notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
       debugPrint('❌ Error save office: $e');
+      return false;
+    } finally {
       _isSaving = false;
       notifyListeners();
-      return false;
     }
   }
 }

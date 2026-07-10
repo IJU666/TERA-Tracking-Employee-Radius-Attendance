@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // WAJIB TAMBAHKAN IMPORT INI
 
 class EmployeeFormScreen extends StatefulWidget {
   const EmployeeFormScreen({super.key});
@@ -33,20 +34,29 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     super.dispose();
   }
 
-  // FUNGSI UNTUK MENYIMPAN DATA LANGSUNG KE FIREBASE FIRESTORE
+  // FUNGSI UNTUK MENYIMPAN DATA KE AUTH DAN FIRESTORE 'users'
   Future<void> _simpanKaryawan() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseFirestore.instance.collection('karyawan').add({
+      // 1. Buat akun di Firebase Authentication agar user bisa login
+      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      // 2. Simpan data detail ke collection 'users' menggunakan UID dari Auth
+      // agar sinkron antara akun login dan data profil
+      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
         'nama': _namaController.text.trim(),
         'nik': _nikController.text.trim(),
         'email': _emailController.text.trim(),
         'divisi': _divisiController.text.trim(),
         'jabatan': _jabatanController.text.trim(),
-        'roleAkses': _selectedRole,
+        // Diubah menjadi huruf kecil agar seragam dengan data di gambar (contoh: 'admin')
+        'role': _selectedRole.toLowerCase(), 
         'statusHariIni': 'Tidak Hadir',
         'avatarUrl': 'https://via.placeholder.com/150',
         'createdAt': FieldValue.serverTimestamp(),
@@ -61,13 +71,28 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Akun karyawan berhasil disimpan ke Firebase!'), 
+            content: Text('Akun berhasil dibuat dan disimpan ke database users!'), 
             backgroundColor: Colors.green,
           ),
         );
         Navigator.pop(context); // Menutup halaman form setelah sukses
       }
+    } on FirebaseAuthException catch (e) {
+      // Menangkap error khusus dari Firebase Auth (misal: email sudah terdaftar)
+      if (mounted) {
+        String errorMsg = 'Terjadi kesalahan saat mendaftar.';
+        if (e.code == 'email-already-in-use') {
+          errorMsg = 'Email ini sudah digunakan oleh akun lain.';
+        } else if (e.code == 'weak-password') {
+          errorMsg = 'Password terlalu lemah.';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
+        );
+      }
     } catch (e) {
+      // Menangkap error umum lainnya
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal menyimpan data: $e'), backgroundColor: Colors.red),
@@ -154,6 +179,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                             ),
+                            // Memastikan opsi role tertulis jelas
                             items: ['Karyawan', 'Admin'].map((role) {
                               return DropdownMenuItem(value: role, child: Text(role));
                             }).toList(),
