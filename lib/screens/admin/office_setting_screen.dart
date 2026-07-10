@@ -1,10 +1,21 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../providers/office_provider.dart';
+
+class _SearchResult {
+  final String displayName;
+  final LatLng latLng;
+
+  _SearchResult({required this.displayName, required this.latLng});
+}
 
 class OfficeSettingScreen extends StatefulWidget {
   const OfficeSettingScreen({super.key});
@@ -15,12 +26,17 @@ class OfficeSettingScreen extends StatefulWidget {
 
 class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   final _namaController = TextEditingController();
+  final _searchController = TextEditingController();
   final MapController _mapController = MapController();
 
   LatLng _selectedLatLng = const LatLng(-6.2088, 106.8456); // default Jakarta
   double _radius = 50;
   bool _initializedFromData = false;
   bool _saving = false;
+
+  List<_SearchResult> _searchResults = [];
+  bool _isSearching = false;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -47,7 +63,69 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   @override
   void dispose() {
     _namaController.dispose();
+    _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    _debounce?.cancel();
+    if (query.trim().length < 3) {
+      setState(() => _searchResults = []);
+      return;
+    }
+    // Debounce 700ms supaya tidak spam request tiap ketikan (hormati rate limit Nominatim)
+    _debounce = Timer(const Duration(milliseconds: 700), () => _searchPlace(query));
+  }
+
+  Future<void> _searchPlace(String query) async {
+    setState(() => _isSearching = true);
+
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search'
+        '?q=${Uri.encodeQueryComponent(query)}'
+        '&format=json&limit=5&addressdetails=0',
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          // Wajib diisi sesuai kebijakan Nominatim, ganti sesuai identitas app kamu
+          'User-Agent': 'TERA-Attendance-App/1.0 (contact: fauzimaulanaakbarr@gmail.com)',
+
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List data = jsonDecode(response.body);
+        setState(() {
+          _searchResults = data.map((item) {
+            return _SearchResult(
+              displayName: item['display_name'] ?? '-',
+              latLng: LatLng(
+                double.parse(item['lat']),
+                double.parse(item['lon']),
+              ),
+            );
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Nominatim search error: $e');
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
+
+  void _selectSearchResult(_SearchResult result) {
+    setState(() {
+      _selectedLatLng = result.latLng;
+      _searchResults = [];
+      _searchController.clear();
+    });
+    _mapController.move(result.latLng, 16);
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _handleSave() async {
@@ -100,7 +178,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildMap(),
+            _buildMapWithSearch(),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -224,67 +302,133 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
     );
   }
 
-  Widget _buildMap() {
+  Widget _buildMapWithSearch() {
     return SizedBox(
-      height: 260,
+      height: 300,
       child: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _selectedLatLng,
-              initialZoom: 15,
-              onTap: (tapPosition, latLng) {
-                setState(() => _selectedLatLng = latLng);
-              },
+          SizedBox(
+            height: 260,
+            width: double.infinity,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 40),
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _selectedLatLng,
+                  initialZoom: 15,
+                  onTap: (tapPosition, latLng) {
+                    setState(() {
+                      _selectedLatLng = latLng;
+                      _searchResults = [];
+                    });
+                  },
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.tera.attendance', // ganti sesuai package name app kamu
+                  ),
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: _selectedLatLng,
+                        radius: _radius,
+                        useRadiusInMeter: true,
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderColor: AppColors.primary,
+                        borderStrokeWidth: 2,
+                      ),
+                    ],
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _selectedLatLng,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(Icons.location_on_rounded, color: Colors.red, size: 40),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.tera.attendance', // ganti sesuai package name app kamu
-              ),
-              CircleLayer(
-                circles: [
-                  CircleMarker(
-                    point: _selectedLatLng,
-                    radius: _radius,
-                    useRadiusInMeter: true,
-                    color: AppColors.primary.withOpacity(0.12),
-                    borderColor: AppColors.primary,
-                    borderStrokeWidth: 2,
-                  ),
-                ],
-              ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _selectedLatLng,
-                    width: 40,
-                    height: 40,
-                    child: const Icon(Icons.location_on_rounded, color: Colors.red, size: 40),
-                  ),
-                ],
-              ),
-            ],
           ),
+          // Search bar
           Positioned(
-            top: 12,
+            top: 0,
+            left: 12,
             right: 12,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 6)],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.gps_fixed_rounded, size: 14, color: Colors.green),
-                  SizedBox(width: 4),
-                  Text('Akurasi: 5m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                ],
-              ),
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearchChanged,
+                    decoration: InputDecoration(
+                      hintText: 'Cari nama gedung atau alamat...',
+                      hintStyle: TextStyle(fontSize: 13, color: AppColors.textHint),
+                      prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
+                      suffixIcon: _isSearching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : (_searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchResults = []);
+                                  },
+                                )
+                              : null),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+                if (_searchResults.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: AppColors.border),
+                      itemBuilder: (context, index) {
+                        final result = _searchResults[index];
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(Icons.location_on_outlined, size: 18, color: AppColors.primary),
+                          title: Text(
+                            result.displayName,
+                            style: const TextStyle(fontSize: 12),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => _selectSearchResult(result),
+                        );
+                      },
+                    ),
+                  ),
+              ],
             ),
           ),
           Positioned(
@@ -303,7 +447,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                   children: [
                     Icon(Icons.touch_app_outlined, size: 14, color: Colors.white),
                     SizedBox(width: 6),
-                    Text('Ketuk peta untuk pilih lokasi', style: TextStyle(fontSize: 12, color: Colors.white)),
+                    Text('Cari atau ketuk peta untuk pilih lokasi', style: TextStyle(fontSize: 12, color: Colors.white)),
                   ],
                 ),
               ),
