@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/routes/app_routes.dart';
 import '../../providers/auth_provider.dart';
+import '../attendance/history_screen.dart';
+import '../leave/leave_form_screen.dart';
 import '../widgets/confirm_dialog.dart';
 import 'edit_profile_screen.dart';
 
@@ -56,13 +58,23 @@ class SettingScreen extends StatelessWidget {
                 icon: Icons.calendar_month_outlined,
                 iconColor: AppColors.primary,
                 label: 'Riwayat Absensi',
-                onTap: () => _comingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                  );
+                },
               ),
               _MenuItemData(
                 icon: Icons.event_busy_outlined,
                 iconColor: AppColors.primary,
                 label: 'Cuti & Izin',
-                onTap: () => _comingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LeaveFormScreen()),
+                  );
+                },
               ),
             ]),
             const SizedBox(height: 20),
@@ -108,12 +120,6 @@ class SettingScreen extends StatelessWidget {
                     applicationVersion: '1.0.0',
                   );
                 },
-              ),
-              _MenuItemData(
-                icon: Icons.help_outline_rounded,
-                iconColor: AppColors.primary,
-                label: 'Bantuan',
-                onTap: () => _comingSoon(context),
               ),
             ]),
             const SizedBox(height: 20),
