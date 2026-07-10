@@ -3,8 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahan Import Firestore
+import 'package:firebase_auth/firebase_auth.dart';   // Tambahan Import Auth
 import '../../core/routes/app_routes.dart'; 
-import '../../providers/office_provider.dart'; // Import OfficeProvider
+import '../../providers/office_provider.dart'; 
 
 class AbsenScreen extends StatefulWidget {
   const AbsenScreen({Key? key}) : super(key: key);
@@ -25,6 +27,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
   bool _isLoadingLocation = true;
   String? _errorMessage;
   bool _initializedMapCenter = false;
+  bool _isSubmitting = false; // Tambahan state untuk loading saat submit
 
   @override
   void initState() {
@@ -136,11 +139,57 @@ class _AbsenScreenState extends State<AbsenScreen> {
     }
   }
 
-  void _submitAttendance() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Absen masuk berhasil di posisi $_officeName!')),
-    );
-    _handleBackOrCancel();
+  // Pembaruan fungsi submit untuk update ke Firestore
+  Future<void> _submitAttendance() async {
+    if (_isSubmitting) return; // Mencegah double tap
+    
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      // Mendapatkan UID dari user yang sedang login saat ini
+      final user = FirebaseAuth.instance.currentUser;
+      
+      if (user == null) {
+        throw Exception('User tidak ditemukan. Silakan login kembali.');
+      }
+
+      // Melakukan update pada document user terkait di koleksi 'users'
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'statusHariIni': 'Hadir',
+        'riwayatAbsensi': FieldValue.arrayUnion([
+          {
+            'waktu': Timestamp.now(),
+            'status': 'Hadir',
+            'lokasi': '${_currentLocation!.latitude}, ${_currentLocation!.longitude}',
+          }
+        ])
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Absen masuk berhasil di posisi $_officeName!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _handleBackOrCancel();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal melakukan absen: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -178,7 +227,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
           ),
         ),
         body: officeLoading 
-          ? const Center(child: CircularProgressIndicator()) // Tampilkan loading jika data database sedang ditarik
+          ? const Center(child: CircularProgressIndicator()) 
           : Stack(
               children: [
                 Positioned(
@@ -303,7 +352,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                         const SizedBox(height: 20),
 
                         Text(
-                          _officeName, // Menampilkan nama kantor dari database (contoh: "UMB")
+                          _officeName, 
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -451,7 +500,8 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton.icon(
-                            onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation)
+                            // Validasi disable button ditambahkan kondisi !_isSubmitting
+                            onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation && !_isSubmitting)
                                 ? _submitAttendance
                                 : null,
                             style: ElevatedButton.styleFrom(
@@ -460,10 +510,12 @@ class _AbsenScreenState extends State<AbsenScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               elevation: 0,
                             ),
-                            icon: const Icon(Icons.fingerprint, color: Colors.white),
-                            label: const Text(
-                              'Konfirmasi Absen Masuk',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            icon: _isSubmitting 
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.fingerprint, color: Colors.white),
+                            label: Text(
+                              _isSubmitting ? 'Memproses...' : 'Konfirmasi Absen Masuk',
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),
                         ),
@@ -472,7 +524,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
-                            onPressed: _handleBackOrCancel,
+                            onPressed: _isSubmitting ? null : _handleBackOrCancel,
                             child: const Text(
                               'Batal',
                               style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w600),
