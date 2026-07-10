@@ -93,6 +93,12 @@ class SettingScreen extends StatelessWidget {
                 },
               ),
               _MenuItemData(
+                icon: Icons.lock_outline_rounded,
+                iconColor: AppColors.primary,
+                label: 'Ganti Password',
+                onTap: () => _comingSoon(context),
+              ),
+              _MenuItemData(
                 icon: Icons.notifications_none_rounded,
                 iconColor: AppColors.primary,
                 label: 'Notifikasi',
