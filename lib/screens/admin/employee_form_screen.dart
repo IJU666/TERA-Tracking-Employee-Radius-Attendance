@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart'; // <--- Sudah diperbaiki menjadi material.dart
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class EmployeeFormScreen extends StatefulWidget {
@@ -33,6 +33,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     super.dispose();
   }
 
+  // FUNGSI UNTUK MENYIMPAN DATA LANGSUNG KE FIREBASE FIRESTORE
   Future<void> _simpanKaryawan() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -59,9 +60,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Akun karyawan berhasil disimpan!'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text('Akun karyawan berhasil disimpan ke Firebase!'), 
+            backgroundColor: Colors.green,
+          ),
         );
-        Navigator.pop(context);
+        Navigator.pop(context); // Menutup halaman form setelah sukses
       }
     } catch (e) {
       if (mounted) {
@@ -76,116 +80,135 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: 16,
-        left: 20,
-        right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Scaffold(
+      backgroundColor: Colors.black.withOpacity(0.4),
+      body: Align(
+        alignment: Alignment.bottomCenter,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.9,
+            padding: EdgeInsets.only(
+              top: 16,
+              left: 20,
+              right: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Tambah Karyawan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.grey),
-                    onPressed: () => Navigator.pop(context),
-                  )
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Tambah Karyawan', 
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('IDENTITAS DIRI'),
+                          _buildTextField('Nama Lengkap', 'Masukkan nama lengkap', _namaController),
+                          _buildTextField('Nomor Induk Karyawan (NIK)', 'Contoh: 2023001', _nikController, isNumeric: true),
+                          _buildTextField('Email Perusahaan', 'karyawan@perusahaan.com', _emailController, isEmail: true),
+
+                          _buildSectionTitle('PENEMPATAN'),
+                          Row(
+                            children: [
+                              Expanded(child: _buildTextField('Divisi', 'Sales / IT', _divisiController)),
+                              const SizedBox(width: 12),
+                              Expanded(child: _buildTextField('Jabatan', 'Manager', _jabatanController)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text('Role Akses', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                          const SizedBox(height: 6),
+                          DropdownButtonFormField<String>(
+                            value: _selectedRole,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                            ),
+                            items: ['Karyawan', 'Admin'].map((role) {
+                              return DropdownMenuItem(value: role, child: Text(role));
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setState(() => _selectedRole = val);
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          _buildSectionTitle('KEAMANAN'),
+                          const Text('Password Sementara', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                          const SizedBox(height: 6),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _isPasswordObscured,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                              suffixIcon: IconButton(
+                                icon: Icon(_isPasswordObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                                onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Karyawan akan diminta mengubah password saat login pertama kali.',
+                            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey[600]),
+                          ),
+                          const SizedBox(height: 24),
+
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1976D2),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                              onPressed: _isLoading ? null : _simpanKaryawan,
+                              icon: _isLoading 
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  : const Icon(Icons.save_alt, color: Colors.white),
+                              label: const Text('Simpan Akun', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              _buildSectionTitle('IDENTITAS DIRI'),
-              _buildTextField('Nama Lengkap', 'Masukkan nama lengkap', _namaController),
-              _buildTextField('Nomor Induk Karyawan (NIK)', 'Contoh: 2023001', _nikController, isNumeric: true),
-              _buildTextField('Email Perusahaan', 'karyawan@perusahaan.com', _emailController, isEmail: true),
-
-              _buildSectionTitle('PENEMPATAN'),
-              Row(
-                children: [
-                  Expanded(child: _buildTextField('Divisi', 'Sales / IT', _divisiController)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildTextField('Jabatan', 'Manager', _jabatanController)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text('Role Akses', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-              const SizedBox(height: 6),
-              DropdownButtonFormField<String>(
-                value: _selectedRole,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                ),
-                items: ['Karyawan', 'Admin'].map((role) {
-                  return DropdownMenuItem(value: role, child: Text(role));
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedRole = val);
-                },
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionTitle('KEAMANAN'),
-              const Text('Password Sementara', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: _isPasswordObscured,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                  suffixIcon: IconButton(
-                    icon: Icon(_isPasswordObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                    onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Karyawan akan diminta mengubah password saat login pertama kali.',
-                style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1976D2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  onPressed: _isLoading ? null : _simpanKaryawan,
-                  icon: _isLoading 
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.save_alt, color: Colors.white),
-                  label: const Text('Simpan Akun', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
