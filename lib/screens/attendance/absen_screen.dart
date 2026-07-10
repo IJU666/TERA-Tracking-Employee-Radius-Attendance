@@ -3,8 +3,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Tambahan Import Firestore
-import 'package:firebase_auth/firebase_auth.dart';   // Tambahan Import Auth
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';   
 import '../../core/routes/app_routes.dart'; 
 import '../../providers/office_provider.dart'; 
 
@@ -18,7 +18,6 @@ class AbsenScreen extends StatefulWidget {
 class _AbsenScreenState extends State<AbsenScreen> {
   final MapController _mapController = MapController();
 
-  // Definisikan default nilai fallback jika data database gagal dimuat
   LatLng _officeLocation = const LatLng(-6.2088, 106.8456); 
   double _officeRadius = 50.0;
   String _officeName = 'Kantor';
@@ -27,12 +26,11 @@ class _AbsenScreenState extends State<AbsenScreen> {
   bool _isLoadingLocation = true;
   String? _errorMessage;
   bool _initializedMapCenter = false;
-  bool _isSubmitting = false; // Tambahan state untuk loading saat submit
+  bool _isSubmitting = false; 
 
   @override
   void initState() {
     super.initState();
-    // 1. Ambil data kantor dari Firestore via OfficeProvider di awal frame terpasang
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final officeProvider = context.read<OfficeProvider>();
       await officeProvider.loadOffice();
@@ -41,7 +39,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
     });
   }
 
-  // Ambil nilai dari provider ke local state screen
   void _applyOfficeData() {
     final office = context.read<OfficeProvider>().office;
     if (office != null) {
@@ -50,14 +47,12 @@ class _AbsenScreenState extends State<AbsenScreen> {
         _officeRadius = office.radius;
         _officeName = office.nama;
       });
-      // Pindahkan fokus kamera ke kantor jika lokasi user belum ditemukan
       if (!_initializedMapCenter) {
         _mapController.move(_officeLocation, 16);
       }
     }
   }
 
-  // Hitung jarak dinamis antara lokasi user saat ini dan koordinat kantor dari database
   double get _distance {
     if (_currentLocation == null) return double.infinity;
     return Geolocator.distanceBetween(
@@ -115,7 +110,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
         _initializedMapCenter = true;
       });
 
-      // Fokuskan kamera ke lokasi user setelah ditemukan
       _mapController.move(userLatLng, 16);
     } catch (e) {
       if (!mounted) return;
@@ -139,29 +133,28 @@ class _AbsenScreenState extends State<AbsenScreen> {
     }
   }
 
-  // Pembaruan fungsi submit untuk update ke Firestore
+  // --- FUNGSI UPDATE DATABASE ---
   Future<void> _submitAttendance() async {
-    if (_isSubmitting) return; // Mencegah double tap
+    if (_isSubmitting) return; 
     
     setState(() {
       _isSubmitting = true;
     });
 
     try {
-      // Mendapatkan UID dari user yang sedang login saat ini
       final user = FirebaseAuth.instance.currentUser;
       
       if (user == null) {
-        throw Exception('User tidak ditemukan. Silakan login kembali.');
+        throw Exception('User tidak ditemukan. Pastikan Anda sudah login.');
       }
 
-      // Melakukan update pada document user terkait di koleksi 'users'
+      // Pastikan string 'statusHariIni' identik persis dengan yang ada di Firestore
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'statusHariIni': 'Hadir',
+        'statusHariIni': 'Hadir', // Merubah field statusHariIni di luar array
         'riwayatAbsensi': FieldValue.arrayUnion([
           {
             'waktu': Timestamp.now(),
-            'status': 'Hadir',
+            'statusHariIni': 'Hadir', // Memasukkan status kehadiran ke dalam array riwayat
             'lokasi': '${_currentLocation!.latitude}, ${_currentLocation!.longitude}',
           }
         ])
@@ -194,7 +187,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Memantau state loading dari database office
     final officeLoading = context.watch<OfficeProvider>().isLoading;
     
     final distance = _distance;
@@ -262,7 +254,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           ),
                           MarkerLayer(
                             markers: [
-                              // Pin Lokasi Kantor dari database
                               Marker(
                                 point: _officeLocation,
                                 width: 45,
@@ -273,7 +264,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
                                   size: 36,
                                 ),
                               ),
-                              // Pin Lokasi Karyawan
                               if (hasLocation)
                                 Marker(
                                   point: _currentLocation!,
@@ -500,7 +490,6 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton.icon(
-                            // Validasi disable button ditambahkan kondisi !_isSubmitting
                             onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation && !_isSubmitting)
                                 ? _submitAttendance
                                 : null,
