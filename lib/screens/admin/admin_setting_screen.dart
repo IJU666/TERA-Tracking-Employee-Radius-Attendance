@@ -8,7 +8,7 @@ import '../widgets/confirm_dialog.dart';
 import 'employee_management_screen.dart';
 import 'office_setting_screen.dart';
 import 'leave_approval_screen.dart';
-
+import '../setting/change_password_screen.dart';
 class AdminSettingScreen extends StatefulWidget {
   const AdminSettingScreen({super.key});
 
@@ -118,7 +118,12 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
                 iconBg: Colors.grey.shade100,
                 iconColor: Colors.grey.shade700,
                 title: 'Ganti Password',
-                onTap: () => _comingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+                  );
+                },
               ),
             ]),
             const SizedBox(height: 20),
