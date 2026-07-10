@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../core/constants/app_strings.dart';
 import '../models/user_model.dart';
@@ -26,6 +27,38 @@ class AuthProvider extends ChangeNotifier {
     }
   } catch (_) {
     // silent fail — data lama tetap dipakai
+  }
+}
+Future<bool> registerEmployee({
+  required String email,
+  required String password,
+  required String nama,
+}) async {
+  try {
+    // 1. Daftarkan akun ke Firebase Authentication
+    UserCredential userCredential = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: password);
+
+    String uid = userCredential.user!.uid;
+
+    // 2. Simpan data profil ke Firestore koleksi 'users'
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'uid': uid,
+      'nama': nama,
+      'email': email,
+      'role': 'employee',
+      
+      // 🔥 OTOMATIS JADI 14 SAAT USER DIBUAT
+      'sisa_cuti': 14,  
+      'total_cuti': 14, 
+      
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    return true;
+  } catch (e) {
+    debugPrint("Error register user: $e");
+    return false;
   }
 }
 
@@ -148,4 +181,5 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+  
 }

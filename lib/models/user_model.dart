@@ -7,7 +7,9 @@ class UserModel {
   final String divisi;
   final String jabatan;
   final String role; // 'karyawan' atau 'admin'
-  final String? fotoUrl;
+  final String? avatarUrl;
+  final int sisaCuti;
+  final int totalCuti;
 
   const UserModel({
     required this.uid,
@@ -17,7 +19,9 @@ class UserModel {
     required this.divisi,
     required this.jabatan,
     required this.role,
-    this.fotoUrl,
+    required this.sisaCuti,
+    required this.totalCuti,
+    this.avatarUrl,
   });
 
   bool get isAdmin => role == 'admin';
@@ -31,7 +35,9 @@ class UserModel {
       divisi: map['divisi'] ?? '',
       jabatan: map['jabatan'] ?? '',
       role: map['role'] ?? 'karyawan',
-      fotoUrl: map['avatarUrl'] ?? '',
+      avatarUrl: map['avatarUrl'] ?? '',
+      sisaCuti: map['sisa_cuti'] ?? 14,   
+      totalCuti: map['total_cuti'] ?? 14,
     );
   }
 
@@ -43,7 +49,10 @@ class UserModel {
       'divisi': divisi,
       'jabatan': jabatan,
       'role': role,
-      'fotoUrl': fotoUrl,
+      'avatarUrl': avatarUrl,
+      'sisa_cuti': sisaCuti,
+      'total_cuti': totalCuti,
+      
     };
   }
 
@@ -54,7 +63,9 @@ class UserModel {
     String? divisi,
     String? jabatan,
     String? role,
-    String? fotoUrl,
+    String? avatarUrl,
+    int? sisaCuti,
+    int? totalCuti,
   }) {
     return UserModel(
       uid: uid,
@@ -64,7 +75,9 @@ class UserModel {
       divisi: divisi ?? this.divisi,
       jabatan: jabatan ?? this.jabatan,
       role: role ?? this.role,
-      fotoUrl: fotoUrl ?? this.fotoUrl,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      sisaCuti: sisaCuti ?? this.sisaCuti,
+      totalCuti: totalCuti ?? this.totalCuti,
     );
   }
 }
