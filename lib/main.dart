@@ -16,6 +16,7 @@ import 'screens/admin/admin_dashboard_screen.dart';
 import 'screens/admin/office_setting_screen.dart';
 import 'screens/admin/employee_management_screen.dart';
 import 'screens/admin/leave_approval_screen.dart';
+import 'screens/admin/admin_setting_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,7 @@ class MyApp extends StatelessWidget {
           AppRoutes.employeeManagement: (_) => const EmployeeManagementScreen(),
           AppRoutes.leaveForm: (_) => const LeaveFormScreen(),
           AppRoutes.leaveApproval: (_) => const LeaveApprovalScreen(), 
+          AppRoutes.AdminSettingScreen: (_) => const AdminSettingScreen(),
         },
 
         // Fallback jika ada route yang tidak terdefinisi

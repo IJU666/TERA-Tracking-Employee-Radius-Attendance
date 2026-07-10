@@ -307,12 +307,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 icon: Icon(Icons.home, color: _currentIndex == 0 ? const Color(0xFF0D47A1) : Colors.grey),
                 onPressed: () => setState(() => _currentIndex = 0),
               ),
-              const SizedBox(width: 40),
+              const SizedBox(width: 40), // Spacer untuk FloatingActionButton di tengah
               IconButton(
                 icon: Icon(Icons.settings, color: _currentIndex == 1 ? const Color(0xFF0D47A1) : Colors.grey),
                 onPressed: () {
                   setState(() => _currentIndex = 1);
-                  Navigator.pushNamed(context, AppRoutes.setting);
+                  // UBAH: Dari AppRoutes.setting menjadi AppRoutes.AdminSettingScreen
+                  Navigator.pushNamed(context, AppRoutes.AdminSettingScreen).then((_) {
+                    // Opsional: Kembalikan state index ke home saat kembali dari halaman setting
+                    setState(() => _currentIndex = 0);
+                  });
                 },
               ),
             ],

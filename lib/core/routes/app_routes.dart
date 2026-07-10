@@ -1,20 +1,3 @@
-/// Kumpulan nama route yang dipakai di seluruh aplikasi.
-///
-/// Catatan: sengaja hanya berisi konstanta nama route (bukan mapping ke
-/// Widget) supaya file ini bisa langsung dipakai oleh login_screen.dart &
-/// home_screen.dart tanpa perlu semua screen lain sudah dibuat.
-///
-/// Setelah semua screen selesai dibuat, tambahkan `routes` map di
-/// main.dart / app_router terpisah, contoh:
-///
-/// MaterialApp(
-///   initialRoute: AppRoutes.splash,
-///   routes: {
-///     AppRoutes.login: (_) => const LoginScreen(),
-///     AppRoutes.home: (_) => const HomeScreen(),
-///     ...
-///   },
-/// )
 class AppRoutes {
   AppRoutes._();
 
@@ -40,6 +23,9 @@ class AppRoutes {
   static const String employeeManagement = '/employee-management';
   static const String employeeForm = '/employee-form';
   static const String employeeDetail = '/employee-detail';
+  
+  // Variabel rute untuk AdminSettingScreen yang sudah ada di file Anda
+  static const String AdminSettingScreen = '/admin-setting';
 
   static const String notification = '/notification';
 }
