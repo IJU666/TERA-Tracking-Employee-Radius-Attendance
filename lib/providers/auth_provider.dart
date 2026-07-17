@@ -1,12 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../core/constants/app_strings.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/user_repository.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository();
   final UserRepository _userRepository = UserRepository();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   UserModel? _currentUser;
   bool _isLoading = false;
@@ -28,6 +32,89 @@ class AuthProvider extends ChangeNotifier {
     // silent fail — data lama tetap dipakai
   }
 }
+
+Future<void> refreshUserData(dynamic _auth) async {
+  final user = _auth.currentUser; // atau ambil UID user yang sedang login
+  if (user != null) {
+    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final snapshot = await docRef.get();
+
+    if (snapshot.exists) {
+      final data = snapshot.data();
+      
+      // 🔥 PENTING: Cek apakah user lama ini belum punya field sisa_cuti
+      if (data != null && !data.containsKey('sisa_cuti')) {
+        // Jika belum ada, kita buatkan otomatis bernilai 14 agar tidak minus saat dipotong
+        await docRef.update({
+          'sisa_cuti': 14,
+          'total_cuti': 14,
+        });
+        debugPrint("✅ Field sisa_cuti berhasil di-inisialisasi untuk user lama.");
+      }
+      
+      // Setelah dipastikan field-nya ada, baru map ke UserModel kamu seperti biasa
+      // _currentUser = UserModel.fromMap(snapshot.data()!, user.uid);
+      notifyListeners();
+    }
+  }
+}
+
+// 📄 Tempatnya di: lib/providers/auth_provider.dart
+
+Future<bool> registerEmployee({required String email, required String password, required String nama}) async {
+  try {
+    // 1. Proses create user di Firebase Auth
+    UserCredential credential = await _auth.createUserWithEmailAndPassword(email: email, password: password);
+    
+    // 2. 🔥 SAAT SIMPAN DATA KE KOLEKSI USERS, LANGSUNG MASUKKAN FIELD CUTI
+    await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
+      'uid': credential.user!.uid,
+      'nama': nama,
+      'email': email,
+      'role': 'karyawan',
+      'sisa_cuti': 14,   // 👈 Langsung set 14 hari sejak pertama akun dibuat
+      'total_cuti': 14,  // 👈 Langsung set 14 hari sejak pertama akun dibuat
+    });
+
+    return true;
+  } catch (e) {
+    debugPrint("❌ Gagal registrasi: $e");
+    return false;
+  }
+}
+
+// Future<bool> registerEmployee({
+//   required String email,
+//   required String password,
+//   required String nama,
+// }) async {
+//   try {
+//     // 1. Daftarkan akun ke Firebase Authentication
+//     UserCredential userCredential = await FirebaseAuth.instance
+//         .createUserWithEmailAndPassword(email: email, password: password);
+
+//     String uid = userCredential.user!.uid;
+
+//     // 2. Simpan data profil ke Firestore koleksi 'users'
+//     await FirebaseFirestore.instance.collection('users').doc(uid).set({
+//       'uid': uid,
+//       'nama': nama,
+//       'email': email,
+//       'role': 'employee',
+      
+//       // 🔥 OTOMATIS JADI 14 SAAT USER DIBUAT
+//       'sisa_cuti': 14,  
+//       'total_cuti': 14, 
+      
+//       'createdAt': FieldValue.serverTimestamp(),
+//     });
+
+//     return true;
+//   } catch (e) {
+//     debugPrint("Error register user: $e");
+//     return false;
+//   }
+// }
 
   Future<void> init() async {
     final firebaseUser = _authRepository.currentUser;
@@ -148,4 +235,5 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+  
 }

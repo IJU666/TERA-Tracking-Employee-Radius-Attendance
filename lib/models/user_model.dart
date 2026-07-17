@@ -7,7 +7,9 @@ class UserModel {
   final String divisi;
   final String jabatan;
   final String role; // 'karyawan', 'admin', atau 'manager'
-  final String? fotoUrl;
+  final String? avatarUrl;
+  final int sisaCuti;
+  final int totalCuti;
   final RingkasanBulanan ringkasanBulanan;
 
   const UserModel({
@@ -18,8 +20,10 @@ class UserModel {
     required this.divisi,
     required this.jabatan,
     required this.role,
-    this.fotoUrl,
+    required this.sisaCuti,
+    required this.totalCuti,
     required this.ringkasanBulanan,
+    this.avatarUrl,
   });
 
   bool get isAdmin => role == 'admin';
@@ -34,7 +38,9 @@ class UserModel {
       divisi: map['divisi'] ?? '',
       jabatan: map['jabatan'] ?? '',
       role: map['role'] ?? 'karyawan',
-      fotoUrl: map['avatarUrl'] ?? '', // Mapping database
+      avatarUrl: map['avatarUrl'] ?? '', 
+      sisaCuti: map['sisa_cuti'] ?? 14,   
+      totalCuti: map['total_cuti'] ?? 14,
       ringkasanBulanan: RingkasanBulanan.fromMap(map['ringkasanBulanan'] ?? {}),
     );
   }
@@ -47,7 +53,9 @@ class UserModel {
       'divisi': divisi,
       'jabatan': jabatan,
       'role': role,
-      'avatarUrl': fotoUrl, // Menggunakan penulisan seragam di Firestore
+      'avatarUrl': avatarUrl,
+      'sisa_cuti': sisaCuti,
+      'total_cuti': totalCuti,
       'ringkasanBulanan': ringkasanBulanan.toMap(),
     };
   }
@@ -59,7 +67,9 @@ class UserModel {
     String? divisi,
     String? jabatan,
     String? role,
-    String? fotoUrl,
+    String? avatarUrl,
+    int? sisaCuti,
+    int? totalCuti,
     RingkasanBulanan? ringkasanBulanan,
   }) {
     return UserModel(
@@ -70,7 +80,9 @@ class UserModel {
       divisi: divisi ?? this.divisi,
       jabatan: jabatan ?? this.jabatan,
       role: role ?? this.role,
-      fotoUrl: fotoUrl ?? this.fotoUrl,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      sisaCuti: sisaCuti ?? this.sisaCuti,
+      totalCuti: totalCuti ?? this.totalCuti,
       ringkasanBulanan: ringkasanBulanan ?? this.ringkasanBulanan,
     );
   }

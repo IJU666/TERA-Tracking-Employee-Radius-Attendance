@@ -48,7 +48,7 @@ class SettingScreen extends StatelessWidget {
               nama: user?.nama ?? '-',
               jabatanDivisi: '${user?.jabatan ?? '-'} - ${user?.divisi ?? '-'}',
               nik: user?.nik ?? '-',
-              fotoUrl: user?.fotoUrl,
+              avatarUrl: user?.avatarUrl,
             ),
             const SizedBox(height: 24),
             _sectionLabel('Absensi'),
@@ -148,7 +148,7 @@ class SettingScreen extends StatelessWidget {
     required String nama,
     required String jabatanDivisi,
     required String nik,
-    String? fotoUrl,
+    String? avatarUrl,
   }) {
     return Container(
       width: double.infinity,
@@ -171,8 +171,8 @@ class SettingScreen extends StatelessWidget {
               CircleAvatar(
                 radius: 40,
                 backgroundColor: AppColors.primary.withOpacity(0.1),
-                backgroundImage: (fotoUrl != null && fotoUrl.isNotEmpty) ? NetworkImage(fotoUrl) : null,
-                child: (fotoUrl == null || fotoUrl.isEmpty)
+                backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+                child: (avatarUrl == null || avatarUrl.isEmpty)
                     ? Icon(Icons.person_rounded, size: 40, color: AppColors.primary)
                     : null,
               ),

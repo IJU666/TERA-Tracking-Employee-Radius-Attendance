@@ -110,10 +110,10 @@ Future<void> _handleSave() async {
                       CircleAvatar(
                         radius: 44,
                         backgroundColor: AppColors.primary.withOpacity(0.1),
-                        backgroundImage: (user?.fotoUrl != null && user!.fotoUrl!.isNotEmpty)
-                            ? NetworkImage(user.fotoUrl!)
+                        backgroundImage: (user?.avatarUrl != null && user!.avatarUrl!.isNotEmpty)
+                            ? NetworkImage(user.avatarUrl!)
                             : null,
-                        child: (user?.fotoUrl == null || user!.fotoUrl!.isEmpty)
+                        child: (user?.avatarUrl == null || user!.avatarUrl!.isEmpty)
                             ? Icon(Icons.person_rounded, size: 44, color: AppColors.primary)
                             : null,
                       ),

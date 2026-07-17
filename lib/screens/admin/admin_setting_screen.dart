@@ -58,7 +58,7 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
               context,
               nama: user?.nama ?? '-',
               email: user?.email ?? '-',
-              fotoUrl: user?.fotoUrl,
+              avatarUrl: user?.avatarUrl,
             ),
             const SizedBox(height: 24),
             _sectionLabel('Manajemen'),
@@ -169,7 +169,7 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
     BuildContext context, {
     required String nama,
     required String email,
-    String? fotoUrl,
+    String? avatarUrl,
   }) {
     return Container(
       width: double.infinity,
@@ -190,8 +190,8 @@ class _AdminSettingScreenState extends State<AdminSettingScreen> {
           CircleAvatar(
             radius: 28,
             backgroundColor: AppColors.primary.withOpacity(0.1),
-            backgroundImage: (fotoUrl != null && fotoUrl.isNotEmpty) ? NetworkImage(fotoUrl) : null,
-            child: (fotoUrl == null || fotoUrl.isEmpty)
+            backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty) ? NetworkImage(avatarUrl) : null,
+            child: (avatarUrl == null || avatarUrl.isEmpty)
                 ? Icon(Icons.person_rounded, color: AppColors.primary, size: 28)
                 : null,
           ),
