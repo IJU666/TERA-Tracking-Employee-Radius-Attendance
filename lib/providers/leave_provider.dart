@@ -23,7 +23,7 @@ class LeaveProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Menyimpan data langsung ke koleksi 'cuti_izin'
+      // 1. Menyimpan data langsung ke koleksi 'cuti_izin'
       await FirebaseFirestore.instance.collection('cuti_izin').add({
         'uid': uid,
         'nama': nama,
@@ -33,10 +33,23 @@ class LeaveProvider extends ChangeNotifier {
         'alasan': alasan,
         'status': 'Pending', // Status default awal untuk di-approve/reject oleh admin
         'createdAt': FieldValue.serverTimestamp(), // Waktu server saat dokumen dibuat
-        ...?additionalInfo, // Memasukkan data tambahan seperti kontak_darurat atau fileUrl secara fleksibel
+        ...?additionalInfo, // Memasukkan data tambahan secara fleksibel
       });
 
-      // Opsional: Refresh list riwayat lokal milik user setelah berhasil input data baru
+      // 🔥 2. LOGIKA POTONG CUTI OTOMATIS
+      // Jika yang diajukan adalah 'Cuti', potong sisa cuti di dokumen user secara otomatis
+      if (type == 'Cuti') {
+        final int durasiCuti = dateEnd.difference(dateStart).inDays + 1;
+        
+        await FirebaseFirestore.instance.collection('users').doc(uid).update({
+          // ⚠️ PENTING: Pastikan penamaan 'sisa_cuti' ini sama persis dengan di Firestore Console-mu (misal: 'sisa_cuti' atau 'sisaCuti')
+          'sisa_cuti': FieldValue.increment(-durasiCuti),
+        });
+        
+        debugPrint("✅ Berhasil memotong sisa cuti sebanyak $durasiCuti hari di Firestore.");
+      }
+
+      // Refresh list riwayat lokal milik user setelah berhasil input data baru
       await fetchMyLeaveRequests(uid);
       
       return true; // Return true tanda operasi sukses masuk database

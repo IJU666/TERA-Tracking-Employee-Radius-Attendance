@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:tugas_besar/models/user_model.dart';
 import '../../providers/leave_provider.dart';
 import '../../providers/auth_provider.dart';
 
@@ -133,6 +134,8 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
   Widget build(BuildContext context) {
     final themeColor = _isIzinTab ? const Color(0xFF1565C0) : Colors.orange.shade800;
     final isLoading = context.watch<LeaveProvider>().isLoading;
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.currentUser;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -196,7 +199,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _isIzinTab ? _buildIzinForm() : _buildCutiForm(),
+                child: _isIzinTab ? _buildIzinForm() : _buildCutiForm(user),
               ),
             ),
 
@@ -238,34 +241,51 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
   }
 
   // --- TAB PANEL CUTI ---
-  Widget _buildCutiForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade100)),
-          child: Row(
-            children: [
-              Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle), child: Icon(Icons.calendar_month, color: Colors.orange.shade800)),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Sisa Cuti Kamu', style: TextStyle(color: Colors.black54, fontSize: 14)),
-                  const SizedBox(height: 4),
-                  RichText(
-                    text: TextSpan(
-                      text: '12 hari ',
-                      style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 20),
-                      children: const [TextSpan(text: 'dari 14 hari/tahun', style: TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.normal))],
-                    ),
-                  ),
-                ],
-              )
-            ],
-          ),
+  Widget _buildCutiForm(UserModel? user) {
+    final sisaCuti = user?.sisaCuti ?? 14;
+  final totalCuti = user?.totalCuti ?? 14;
+return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50, 
+          borderRadius: BorderRadius.circular(12), 
+          border: Border.all(color: Colors.orange.shade100),
         ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10), 
+              decoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle), 
+              child: Icon(Icons.calendar_month, color: Colors.orange.shade800),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Sisa Cuti Kamu', style: TextStyle(color: Colors.black54, fontSize: 14)),
+                const SizedBox(height: 4),
+                RichText(
+                  text: TextSpan(
+                    // 🔥 SEKARANG SUDAH DINAMIS MENGGUNAKAN VARIABEL
+                    text: '$sisaCuti hari ', 
+                    style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 20),
+                    children: [
+                      TextSpan(
+                        // 🔥 SEKARANG SUDAH DINAMIS MENGGUNAKAN VARIABEL
+                        text: 'dari $totalCuti hari/tahun', 
+                        style: const TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.normal),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
         const SizedBox(height: 20),
         _buildFieldLabel('Tanggal Mulai'),
         _buildClickableTextField(_cutiMulaiController, 'Pilih Tanggal Mulai', Icons.calendar_today_outlined, () => _pickDate(context, _cutiMulaiController, 'start')),
