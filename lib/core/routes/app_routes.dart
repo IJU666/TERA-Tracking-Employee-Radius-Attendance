@@ -18,6 +18,7 @@ class AppRoutes {
   static const String editProfile = '/edit-profile';
 
   static const String adminDashboard = '/admin-dashboard';
+  static const String managerDashboard = '/manager-dashboard'; // RUTE BARU UNTUK MANAGER
   static const String officeSetting = '/office-setting';
   static const String leaveApproval = '/leave-approval';
   static const String employeeManagement = '/employee-management';
@@ -25,8 +26,7 @@ class AppRoutes {
   static const String employeeDetail = '/employee-detail';
   static const String changePassword = '/change-password';
   
-  // Variabel rute untuk AdminSettingScreen yang sudah ada di file Anda
   static const String AdminSettingScreen = '/admin-setting';
 
   static const String notification = '/notification';
-} 
+}

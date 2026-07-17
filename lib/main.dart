@@ -25,6 +25,12 @@ import 'screens/admin/leave_approval_screen.dart';
 import 'screens/admin/admin_setting_screen.dart';
 import 'screens/setting/change_password_screen.dart';
 
+// =====================================================================
+// IMPORT BARU UNTUK DASHBOARD MANAGER
+// =====================================================================
+import 'screens/manager/manager_dashboard_screen.dart';
+// =====================================================================
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -75,6 +81,12 @@ class MyApp extends StatelessWidget {
           AppRoutes.leaveApproval: (_) => const LeaveApprovalScreen(), 
           AppRoutes.AdminSettingScreen: (_) => const AdminSettingScreen(),
           AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
+          
+          // =====================================================================
+          // REGISTRASI RUTE UNTUK MANAGER
+          // =====================================================================
+          AppRoutes.managerDashboard: (_) => const ManagerDashboardScreen(),
+          // =====================================================================
         },
 
         // Fallback jika ada route yang tidak terdefinisi

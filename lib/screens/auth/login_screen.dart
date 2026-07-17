@@ -53,8 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (user != null) {
         if (user.isAdmin) {
           // Jika admin, arahkan ke dashboard admin
-          // Catatan: Pastikan 'adminDashboard' sudah didaftarkan di AppRoutes kamu
           Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
+        } else if (user.isManager) {
+          // Jika manager, arahkan ke dashboard manager
+          Navigator.pushReplacementNamed(context, AppRoutes.managerDashboard);
         } else {
           // Jika karyawan biasa, arahkan ke halaman home utama
           Navigator.pushReplacementNamed(context, AppRoutes.home);
