@@ -182,7 +182,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
                             ),
-                            items: ['Karyawan', 'Admin'].map((role) {
+                            items: ['Karyawan', 'Admin', 'Manager'].map((role) {
                               return DropdownMenuItem(value: role, child: Text(role));
                             }).toList(),
                             onChanged: (val) {
