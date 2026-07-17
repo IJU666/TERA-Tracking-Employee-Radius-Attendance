@@ -6,7 +6,6 @@ import '../../providers/leave_provider.dart';
 import '../../providers/auth_provider.dart';
 
 class LeaveFormScreen extends StatefulWidget {
-  // PERBAIKAN 1: Menggunakan modern super parameter syntax
   const LeaveFormScreen({super.key});
 
   @override
@@ -36,11 +35,21 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration.zero, () {
-      // PERBAIKAN 2: Proteksi context lintas async gap dengan mounted check
+    Future.delayed(Duration.zero, () async {
       if (!mounted) return;
       final args = ModalRoute.of(context)?.settings.arguments as String?;
       setState(() => _isIzinTab = args == 'izin');
+      
+      final authProvider = context.read<AuthProvider>();
+      // 🔥 FIX: Hanya gunakan .uid karena .id tidak ada di UserModel kamu
+      final uid = authProvider.currentUser?.uid;
+      if (uid != null) {
+        try {
+          await authProvider.refreshUserData(uid);
+        } catch (e) {
+          debugPrint('Gagal memperbarui data user: $e');
+        }
+      }
     });
   }
 
@@ -84,9 +93,16 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
     final authProvider = context.read<AuthProvider>();
     final leaveProvider = context.read<LeaveProvider>();
 
+    // 🔥 FIX: Hanya gunakan .uid di sini juga
     final String uid = authProvider.currentUser?.uid ?? '';
-    // PERBAIKAN 3: Mengubah .displayName menjadi .nama sesuai properti UserModel Anda
     final String nama = authProvider.currentUser?.nama ?? 'users';
+
+    if (uid.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: ID User tidak ditemukan!'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     bool success = false;
 
@@ -123,10 +139,17 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
     }
 
     if (success && mounted) {
+      await authProvider.refreshUserData(uid);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Pengajuan berhasil dikirim!'), backgroundColor: Colors.green),
       );
       Navigator.pop(context);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal mengirim pengajuan. Silakan cek koneksi atau log konsol.'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -243,49 +266,48 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
   // --- TAB PANEL CUTI ---
   Widget _buildCutiForm(UserModel? user) {
     final sisaCuti = user?.sisaCuti ?? 14;
-  final totalCuti = user?.totalCuti ?? 14;
-return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade50, 
-          borderRadius: BorderRadius.circular(12), 
-          border: Border.all(color: Colors.orange.shade100),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10), 
-              decoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle), 
-              child: Icon(Icons.calendar_month, color: Colors.orange.shade800),
-            ),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Sisa Cuti Kamu', style: TextStyle(color: Colors.black54, fontSize: 14)),
-                const SizedBox(height: 4),
-                RichText(
-                  text: TextSpan(
-                    // 🔥 SEKARANG SUDAH DINAMIS MENGGUNAKAN VARIABEL
-                    text: '$sisaCuti hari ', 
-                    style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 20),
-                    children: [
-                      TextSpan(
-                        // 🔥 SEKARANG SUDAH DINAMIS MENGGUNAKAN VARIABEL
-                        text: 'dari $totalCuti hari/tahun', 
-                        style: const TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.normal),
-                      ),
-                    ],
+    final totalCuti = user?.totalCuti ?? 14;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50, 
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: Colors.orange.shade100),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10), 
+                decoration: BoxDecoration(color: Colors.orange.shade100, shape: BoxShape.circle), 
+                child: Icon(Icons.calendar_month, color: Colors.orange.shade800),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Sisa Cuti Kamu', style: TextStyle(color: Colors.black54, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  RichText(
+                    text: TextSpan(
+                      text: '$sisaCuti hari ', 
+                      style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 20),
+                      children: [
+                        TextSpan(
+                          text: 'dari $totalCuti hari/tahun', 
+                          style: const TextStyle(color: Colors.black54, fontSize: 13, fontWeight: FontWeight.normal),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            )
-          ],
+                ],
+              )
+            ],
+          ),
         ),
-      ),
         const SizedBox(height: 20),
         _buildFieldLabel('Tanggal Mulai'),
         _buildClickableTextField(_cutiMulaiController, 'Pilih Tanggal Mulai', Icons.calendar_today_outlined, () => _pickDate(context, _cutiMulaiController, 'start')),
@@ -322,7 +344,6 @@ return Column(
       children: [
         _buildFieldLabel('Jenis Izin'),
         DropdownButtonFormField<String>(
-          // PERBAIKAN 4: Menggunakan 'initialValue' menggantikan 'value' yang sudah deprecated
           initialValue: _selectedJenisIzin,
           decoration: _inputDecoration('Pilih jenis izin', null),
           items: ['Sakit dengan Surat Dokter', 'Keperluan Keluarga', 'Lainnya']

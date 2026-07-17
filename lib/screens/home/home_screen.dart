@@ -8,12 +8,13 @@ import '../../providers/attendance_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../attendance/absen_screen.dart';
+import '../attendance/checkout_screen.dart'; // Sudah terimport dengan benar
+import '../setting/setting_screen.dart';
 import '../widgets/attendance_list_tile.dart';
 import '../widgets/bottom_navbar.dart';
 import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/status_badge.dart';
-import '../setting/setting_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,28 +26,30 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _navIndex = 0;
 
-  final List<Widget> _pages = [
-    const _HomeContent(),
-    AbsenScreen(),
-    SettingScreen(),
-  ];
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AttendanceProvider>().loadTodayStatus();
-      context.read<AttendanceProvider>().loadRecentHistory();
-      context.read<AttendanceProvider>().loadMonthlySummary();
+      context.read<AttendanceProvider>().loadAllHomeData();
       context.read<NotificationProvider>().listen();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Ambil status check-in secara real-time dari provider
+    final isAlreadyCheckIn = context.watch<AttendanceProvider>().isAlreadyCheckIn;
+
+    // 🔥 Pindahkan ke sini agar halaman indeks ke-1 berubah otomatis saat status absen berubah
+    final List<Widget> pages = [
+      const _HomeContent(),
+      isAlreadyCheckIn ? const CheckoutScreen() : const AbsenScreen(), 
+      const SettingScreen(),
+    ];
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(child: _pages[_navIndex]),
+      body: SafeArea(child: pages[_navIndex]),
       bottomNavigationBar: BottomNavbar(
         currentIndex: _navIndex,
         onTap: (index) => setState(() => _navIndex = index),
@@ -66,9 +69,7 @@ class _HomeContent extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        await attendance.loadTodayStatus();
-        await attendance.loadRecentHistory();
-        await attendance.loadMonthlySummary();
+        await context.read<AttendanceProvider>().loadAllHomeData();
       },
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -81,7 +82,7 @@ class _HomeContent extends StatelessWidget {
           const SizedBox(height: 24),
           const SectionHeader(title: 'Layanan Cepat'),
           const SizedBox(height: 12),
-          _buildQuickServices(context, attendance.remainingLeaveDays),
+          _buildQuickServices(context, user?.sisaCuti ?? 14),
           const SizedBox(height: 24),
           SectionHeader(
             title: 'Absensi Terakhir',
@@ -114,34 +115,31 @@ class _HomeContent extends StatelessWidget {
           child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 10),
-GestureDetector(
-        onLongPress: () {
-          // Ketika tulisan TERA ditekan lama, otomatis masuk ke menu admin
-          Navigator.pushNamed(context, AppRoutes.adminDashboard); 
-          
-          // Opsional: Beri snackbar pengingat
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Bypass Mode: Masuk Ke Dashboard Admin')),
-          );
-        },
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'TERA',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+        GestureDetector(
+          onLongPress: () {
+            Navigator.pushNamed(context, AppRoutes.adminDashboard); 
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Bypass Mode: Masuk Ke Dashboard Admin')),
+            );
+          },
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TERA',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
-            ),
-            Text(
-              'Absensce Application', // (Typo bawaan: Absence)
-              style: TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
+              Text(
+                'Absence Application',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
-      ),
         const Spacer(),
         Stack(
           clipBehavior: Clip.none,
@@ -266,29 +264,6 @@ GestureDetector(
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.absen);
-              },
-              icon: const Icon(Icons.location_on_outlined, size: 20),
-              label: const Text(
-                'Mulai Presensi Sekarang',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -350,7 +325,6 @@ GestureDetector(
             subtitle: 'Sisa: $remainingLeaveDays hari',
             subtitleColor: Colors.orange,
             onTap: () {
-              // Mengirim argument 'cuti' agar otomatis membuka tab Cuti
               Navigator.pushNamed(context, AppRoutes.leaveForm, arguments: 'cuti');
             },
           ),
@@ -365,7 +339,6 @@ GestureDetector(
             subtitle: 'Lihat status',
             subtitleColor: AppColors.primary,
             onTap: () {
-              // Mengirim argument 'izin' agar otomatis membuka tab Izin
               Navigator.pushNamed(context, AppRoutes.leaveForm, arguments: 'izin');
             },
           ),

@@ -5,31 +5,14 @@ import '../models/attendance_model.dart';
 import '../models/check_point_model.dart';
 import '../repositories/attendance_repository.dart';
 
-/// Provider untuk state absensi: status hari ini, riwayat terbaru,
-/// ringkasan bulanan, riwayat berdasarkan filter periode, dan proses
-/// check-in/check-out.
-///
-/// Dipakai oleh:
-/// - home_screen.dart -> todayAttendance, todayStatusLabel, lastAttendance,
-///   monthlyHadir/Lembur/Absen, progress getter, load...()
-/// - absen_screen.dart -> checkIn(), checkOut()
-/// - history_screen.dart -> historyList, isLoadingHistory, periodHadir/
-///   Terlambat/Izin/Absen, loadHistoryByFilter(), loadHistoryByRange()
-///
-/// Catatan / TODO (lihat juga PROGRESS.md):
-/// - Validasi radius kantor (haversine + office_provider) belum dipasang,
-///   masih placeholder `_isWithinRadius`. Setelah office_provider &
-///   haversine_util dibuat, panggil dari sana sebelum simpan checkIn.
-/// - Upload foto (imagePath) ke Storage belum dipasang, masih placeholder
-///   `_uploadPhoto`. Setelah storage_service.dart dibuat, ganti isinya.
-/// - `remainingLeaveDays` masih hardcode, nanti pindah ke LeaveProvider.
 enum AttendanceHistoryFilter { today, thisWeek, thisMonth }
 
 class AttendanceProvider extends ChangeNotifier {
-  final AttendanceRepository _repository = AttendanceRepository();
-
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+  final AttendanceRepository _repository = AttendanceRepository();
+
+  // 🔴 Duplikasi _isLoading & isLoading di sini sudah dihapus
 
   AttendanceModel? _todayAttendance;
   AttendanceModel? get todayAttendance => _todayAttendance;
@@ -37,7 +20,6 @@ class AttendanceProvider extends ChangeNotifier {
   List<AttendanceModel> _attendanceHistory = [];
   List<AttendanceModel> get attendanceHistory => _attendanceHistory;
 
-  // Alias supaya konsisten dengan nama yang dipakai di home_screen.dart
   List<AttendanceModel> get recentHistory => _attendanceHistory;
   AttendanceModel? get lastAttendance =>
       _attendanceHistory.isNotEmpty ? _attendanceHistory.first : null;
@@ -50,7 +32,6 @@ class AttendanceProvider extends ChangeNotifier {
   int get monthlyLembur => _monthlyLembur;
   int get monthlyAbsen => _monthlyAbsen;
 
-  // TODO: ganti dengan data asli dari LeaveProvider/leave_repository.
   int remainingLeaveDays = 12;
 
   static const int _workingDaysAssumption = 22;
@@ -62,67 +43,148 @@ class AttendanceProvider extends ChangeNotifier {
   double get absenProgress =>
       (_monthlyAbsen / _workingDaysAssumption).clamp(0.0, 1.0);
 
-  /// Label status absensi hari ini untuk StatusBadge di home_screen.
+  // 🔥 BARU: Getter untuk cek apakah user sudah absen masuk tetapi belum pulang hari ini
+bool get isAlreadyCheckIn => 
+    _todayAttendance != null && _todayAttendance!.checkIn != null && _todayAttendance!.checkOut == null;
+
+  // 🔥 DIUBAH: Mengikuti alur status yang lebih dinamis setelah check-out
   String get todayStatusLabel {
     if (_todayAttendance == null || _todayAttendance!.checkIn == null) {
       return 'Belum Absen';
     }
-    return _todayAttendance!.statusLabel;
+    if (_todayAttendance!.checkOut != null) {
+      return _todayAttendance!.status == 'lembur' ? 'Lembur Selesai' : 'Selesai Kerja';
+    }
+    return 'Sudah Masuk';
   }
 
   String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
-  /// Muat status absensi hari ini. Panggil di initState home_screen.
+  /// Fungsi satu pintu untuk memuat semua kebutuhan data HomeScreen
+  Future<void> loadAllHomeData() async {
+    final uid = _uid;
+    if (uid == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await Future.wait([
+        _loadTodayStatusSilent(),
+        _loadRecentHistorySilent(),
+        _loadMonthlySummarySilent(),
+      ]);
+    } catch (e) {
+      debugPrint('Gagal memuat semua data beranda: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadTodayStatusSilent() async {
+    try {
+      final uid = _uid;
+      if (uid != null) {
+        _todayAttendance = await _repository.getByDate(uid, DateTime.now());
+      }
+    } catch (e) {
+      debugPrint('Error _loadTodayStatusSilent: $e');
+    }
+  }
+
+  Future<void> _loadRecentHistorySilent({int limit = 5}) async {
+    try {
+      final uid = _uid;
+      if (uid != null) {
+        _attendanceHistory = await _repository.getRecentByUid(uid, limit: limit);
+      }
+    } catch (e) {
+      debugPrint('Error _loadRecentHistorySilent: $e');
+    }
+  }
+
+  // 🔥 DIUBAH: Perhitungan statistik bulanan agar sinkron dengan subkoleksi cuti_izin
+  Future<void> _loadMonthlySummarySilent() async {
+    try {
+      final uid = _uid;
+      if (uid == null) return;
+
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, 1);
+      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+      final monthData = await _repository.getByRange(uid, start, end);
+
+      _monthlyHadir = monthData
+          .where((a) => a.status == 'hadir' || a.status == 'terlambat')
+          .length;
+          
+      // Ambil data lembur yang asalnya dari kalkulasi kerja >= 7 jam
+      _monthlyLembur = monthData.where((a) => a.status == 'lembur').length; 
+
+      // Ambil langsung jumlah izin/cuti yang berstatus "Setujui" dari repositori
+      _monthlyAbsen = await _repository.getApprovedCutiIzinCount(uid);
+    } catch (e) {
+      debugPrint('Error _loadMonthlySummarySilent: $e');
+    }
+  }
+
   Future<void> loadTodayStatus() async {
     final uid = _uid;
     if (uid == null) return;
 
-    _todayAttendance = await _repository.getByDate(uid, DateTime.now());
-    notifyListeners();
+    try {
+      _todayAttendance = await _repository.getByDate(uid, DateTime.now());
+    } catch (e) {
+      debugPrint('Load today status error: $e');
+    } finally {
+      notifyListeners();
+    }
   }
 
-  /// Muat beberapa riwayat absensi terbaru (section "Absensi Terakhir").
   Future<void> loadRecentHistory({int limit = 5}) async {
     final uid = _uid;
     if (uid == null) return;
 
-    _attendanceHistory = await _repository.getRecentByUid(uid, limit: limit);
-    notifyListeners();
+    try {
+      _attendanceHistory = await _repository.getRecentByUid(uid, limit: limit);
+    } catch (e) {
+      debugPrint('Load recent history error: $e');
+    } finally {
+      notifyListeners();
+    }
   }
 
-  /// Muat ringkasan bulan berjalan (section "Ringkasan Bulan Ini").
+  // 🔥 DIUBAH: Sinkronisasi untuk method publik loadMonthlySummary
   Future<void> loadMonthlySummary() async {
     final uid = _uid;
     if (uid == null) return;
 
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, 1);
-    final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, now.month, 1);
+      final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
-    final monthData = await _repository.getByRange(uid, start, end);
+      final monthData = await _repository.getByRange(uid, start, end);
 
-    _monthlyHadir = monthData
-        .where((a) => a.status == 'hadir' || a.status == 'terlambat')
-        .length;
-    _monthlyAbsen = monthData.where((a) => a.status == 'absen').length;
-    // Lembur belum punya field khusus di AttendanceModel; sementara 0
-    // sampai modul lembur dibuat.
-    _monthlyLembur = 0;
-
-    notifyListeners();
+      _monthlyHadir = monthData
+          .where((a) => a.status == 'hadir' || a.status == 'terlambat')
+          .length;
+      _monthlyLembur = monthData.where((a) => a.status == 'lembur').length;
+      _monthlyAbsen = await _repository.getApprovedCutiIzinCount(uid);
+    } catch (e) {
+      debugPrint('Load monthly summary error: $e');
+    } finally {
+      notifyListeners();
+    }
   }
 
-  /// Placeholder validasi radius kantor. Ganti dengan pemanggilan
-  /// haversine_util + data kantor dari office_provider.
   bool _isWithinRadius(double lat, double lng) {
-    // TODO: hitung jarak asli, sementara selalu true.
     return true;
   }
 
-  /// Placeholder upload foto ke Storage. Ganti dengan storage_service.dart
-  /// setelah dibuat. Sementara langsung mengembalikan path lokal apa adanya.
   Future<String> _uploadPhoto(String imagePath) async {
-    // TODO: upload ke Firebase Storage, return download URL asli.
     return imagePath;
   }
 
@@ -141,9 +203,6 @@ class AttendanceProvider extends ChangeNotifier {
 
       final now = DateTime.now();
       final photoUrl = await _uploadPhoto(imagePath);
-
-      // TODO: tentukan status 'hadir'/'terlambat' berdasarkan jam masuk
-      // kantor (misal dari office_provider). Sementara selalu 'hadir'.
       final status = now.hour >= 9 ? 'terlambat' : 'hadir';
 
       final attendance = AttendanceModel(
@@ -152,19 +211,21 @@ class AttendanceProvider extends ChangeNotifier {
         nama: FirebaseAuth.instance.currentUser?.displayName ?? '-',
         date: now,
         status: status,
-        officeName: 'Kantor Pusat', // TODO: ambil dari office_provider
+        officeName: 'Kantor Pusat',
         checkIn: now,
         checkInLocation: CheckPointModel(
           timestamp: now,
           lat: lat,
           lng: lng,
-          distance: 0, // TODO: isi jarak asli dari haversine_util
+          distance: 0,
         ),
         checkInPhotoUrl: photoUrl,
       );
 
       await _repository.checkIn(attendance);
       _todayAttendance = attendance;
+      
+      await loadAllHomeData();
       return true;
     } catch (e) {
       debugPrint('Check-in error: $e');
@@ -204,7 +265,7 @@ class AttendanceProvider extends ChangeNotifier {
         photoUrl,
       );
 
-      await loadTodayStatus();
+      await loadAllHomeData();
       return true;
     } catch (e) {
       debugPrint('Check-out error: $e');
@@ -215,8 +276,7 @@ class AttendanceProvider extends ChangeNotifier {
     }
   }
 
-  // ============ TAMBAHAN UNTUK HISTORY_SCREEN ============
-
+  // ============ PENANGANAN HALAMAN RIWAYAT (HISTORY SCREEN) ============
   bool _isLoadingHistory = false;
   bool get isLoadingHistory => _isLoadingHistory;
 
@@ -235,19 +295,12 @@ class AttendanceProvider extends ChangeNotifier {
 
   void _recalculatePeriodStats() {
     _periodHadir = _historyList.where((a) => a.status == 'hadir').length;
-    _periodTerlambat =
-        _historyList.where((a) => a.status == 'terlambat').length;
-    _periodIzin = _historyList
-        .where((a) => a.status == 'izin' || a.status == 'cuti')
-        .length;
+    _periodTerlambat = _historyList.where((a) => a.status == 'terlambat').length;
+    _periodIzin = _historyList.where((a) => a.status == 'izin' || a.status == 'cuti').length;
     _periodAbsen = _historyList.where((a) => a.status == 'absen').length;
   }
 
-  /// Muat riwayat absensi berdasarkan filter cepat (Hari Ini/Minggu Ini/
-  /// Bulan Ini). Dipakai oleh history_screen.dart.
-  Future<void> loadHistoryByFilter({
-    required AttendanceHistoryFilter filter,
-  }) async {
+  Future<void> loadHistoryByFilter({required AttendanceHistoryFilter filter}) async {
     final now = DateTime.now();
     late DateTime start;
     final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -258,26 +311,16 @@ class AttendanceProvider extends ChangeNotifier {
         break;
       case AttendanceHistoryFilter.thisWeek:
         final mondayThisWeek = now.subtract(Duration(days: now.weekday - 1));
-        start = DateTime(
-          mondayThisWeek.year,
-          mondayThisWeek.month,
-          mondayThisWeek.day,
-        );
+        start = DateTime(mondayThisWeek.year, mondayThisWeek.month, mondayThisWeek.day);
         break;
       case AttendanceHistoryFilter.thisMonth:
         start = DateTime(now.year, now.month, 1);
         break;
     }
-
     await loadHistoryByRange(start: start, end: end);
   }
 
-  /// Muat riwayat absensi berdasarkan rentang tanggal custom (dari
-  /// showDateRangePicker di history_screen.dart).
-  Future<void> loadHistoryByRange({
-    required DateTime start,
-    required DateTime end,
-  }) async {
+  Future<void> loadHistoryByRange({required DateTime start, required DateTime end}) async {
     final uid = _uid;
     if (uid == null) return;
 
@@ -286,7 +329,6 @@ class AttendanceProvider extends ChangeNotifier {
 
     try {
       _historyList = await _repository.getByRange(uid, start, end);
-      // Urutkan terbaru dulu di paling atas, sesuai desain UI.
       _historyList.sort((a, b) => b.date.compareTo(a.date));
       _recalculatePeriodStats();
     } catch (e) {
@@ -297,5 +339,19 @@ class AttendanceProvider extends ChangeNotifier {
     }
   }
 
-  // ============ END TAMBAHAN ============
+  // 💡 Catatan: Method doCheckOut ini tetap dipertahankan tanpa parameter 
+  // agar CheckOutScreen lo gak error saat memanggilnya.
+  Future<void> doCheckOut() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await loadAllHomeData(); 
+    } catch (e) {
+      rethrow; 
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

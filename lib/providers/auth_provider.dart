@@ -33,27 +33,26 @@ class AuthProvider extends ChangeNotifier {
   }
 }
 
-Future<void> refreshUserData(dynamic _auth) async {
-  final user = _auth.currentUser; // atau ambil UID user yang sedang login
-  if (user != null) {
-    final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final snapshot = await docRef.get();
+Future<void> refreshUserData(String uid) async {
+  final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+  final snapshot = await docRef.get();
 
-    if (snapshot.exists) {
-      final data = snapshot.data();
-      
-      // 🔥 PENTING: Cek apakah user lama ini belum punya field sisa_cuti
-      if (data != null && !data.containsKey('sisa_cuti')) {
-        // Jika belum ada, kita buatkan otomatis bernilai 14 agar tidak minus saat dipotong
-        await docRef.update({
-          'sisa_cuti': 14,
-          'total_cuti': 14,
-        });
-        debugPrint("✅ Field sisa_cuti berhasil di-inisialisasi untuk user lama.");
-      }
-      
-      // Setelah dipastikan field-nya ada, baru map ke UserModel kamu seperti biasa
-      // _currentUser = UserModel.fromMap(snapshot.data()!, user.uid);
+  if (snapshot.exists) {
+    final data = snapshot.data();
+
+    // Cek apakah user lama ini belum punya field sisa_cuti
+    if (data != null && !data.containsKey('sisa_cuti')) {
+      await docRef.update({
+        'sisa_cuti': 14,
+        'total_cuti': 14,
+      });
+      debugPrint("✅ Field sisa_cuti berhasil di-inisialisasi untuk user lama.");
+    }
+
+    // Refresh ulang snapshot supaya field baru ikut kebawa (kalau baru saja di-update)
+    final freshSnapshot = await docRef.get();
+    if (freshSnapshot.exists) {
+      _currentUser = UserModel.fromMap(freshSnapshot.data()!, uid);
       notifyListeners();
     }
   }

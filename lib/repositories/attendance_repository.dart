@@ -1,79 +1,110 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/attendance_model.dart';
 
-/// Repository untuk data absensi di koleksi 'attendances'.
 class AttendanceRepository {
-  final CollectionReference _ref =
-      FirebaseFirestore.instance.collection('attendances');
+  final CollectionReference _userRef =
+      FirebaseFirestore.instance.collection('users');
 
-  String _dateId(String uid, DateTime date) {
-    final d = '${date.year}${date.month.toString().padLeft(2, '0')}'
-        '${date.day.toString().padLeft(2, '0')}';
-    return '${uid}_$d';
+  Future<List<AttendanceModel>> _getRiwayatFromArray(String uid) async {
+    try {
+      final doc = await _userRef.doc(uid).get();
+      if (!doc.exists || doc.data() == null) return [];
+
+      final userData = doc.data() as Map<String, dynamic>;
+      final String namaUser = userData['nama'] ?? 'Karyawan';
+      
+      final List<dynamic>? riwayatRaw = userData['riwayatAbsensi'];
+      if (riwayatRaw == null || riwayatRaw.isEmpty) return [];
+
+      return riwayatRaw.map((item) {
+        final map = item as Map<String, dynamic>;
+        
+        final Timestamp timestamp = map['waktu'] is Timestamp 
+            ? map['waktu'] as Timestamp 
+            : Timestamp.now();
+        final DateTime dateTimeValue = timestamp.toDate();
+
+        // 🔥 AMBIL JALUR JAM PULANG JIKA ADA DI DB
+        final Timestamp? checkOutTimestamp = map['waktuCheckOut'];
+
+        final convertedMap = {
+          'uid': uid,
+          'nama': namaUser,
+          'date': dateTimeValue.toIso8601String(),
+          'status': (map['statusHariIni'] ?? 'absen').toString().toLowerCase(),
+          'officeName': userData['divisi'] ?? 'Kantor Pusat',
+          'checkIn': dateTimeValue.toIso8601String(), 
+          'checkOut': checkOutTimestamp != null 
+              ? checkOutTimestamp.toDate().toIso8601String() 
+              : null, // Mapped dari DB lo
+        };
+
+        return AttendanceModel.fromMap(convertedMap, '');
+      }).toList();
+    } catch (e) {
+      print('Error parsing riwayat array: $e');
+      return [];
+    }
   }
 
-  /// Ambil data absensi untuk 1 tanggal tertentu (biasanya hari ini).
+  // 🔥 AMBIL DATA CUTI/IZIN YANG DI-ACC MANAGER UNTUK CARD "ABSEN"
+  Future<int> getApprovedCutiIzinCount(String uid) async {
+    try {
+      final snapshot = await _userRef
+          .doc(uid)
+          .collection('cuti_izin')
+          .where('status', isEqualTo: 'Setujui')
+          .get();
+      return snapshot.docs.length;
+    } catch (e) {
+      print('Error get cuti_izin: $e');
+      return 0;
+    }
+  }
+
   Future<AttendanceModel?> getByDate(String uid, DateTime date) async {
-    final doc = await _ref.doc(_dateId(uid, date)).get();
-    if (!doc.exists) return null;
-    return AttendanceModel.fromMap(
-        doc.data() as Map<String, dynamic>, doc.id);
+    final list = await _getRiwayatFromArray(uid);
+    try {
+      return list.firstWhere((a) =>
+          a.date.year == date.year &&
+          a.date.month == date.month &&
+          a.date.day == date.day);
+    } catch (_) {
+      return null;
+    }
   }
 
-  /// Ambil beberapa riwayat absensi terbaru milik seorang karyawan.
-  Future<List<AttendanceModel>> getRecentByUid(String uid,
-      {int limit = 10}) async {
-    final snapshot = await _ref
-        .where('uid', isEqualTo: uid)
-        .orderBy('date', descending: true)
-        .limit(limit)
-        .get();
-    return snapshot.docs
-        .map((doc) =>
-            AttendanceModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-        .toList();
+  Future<List<AttendanceModel>> getRecentByUid(String uid, {int limit = 10}) async {
+    final list = await _getRiwayatFromArray(uid);
+    list.sort((a, b) => b.date.compareTo(a.date));
+    return list.take(limit).toList();
   }
 
-  /// Ambil semua absensi milik karyawan dalam rentang tanggal (untuk
-  /// ringkasan bulanan / history dengan filter).
-  Future<List<AttendanceModel>> getByRange(
-    String uid,
-    DateTime start,
-    DateTime end,
-  ) async {
-    final snapshot = await _ref
-        .where('uid', isEqualTo: uid)
-        .where('date', isGreaterThanOrEqualTo: start.toIso8601String())
-        .where('date', isLessThanOrEqualTo: end.toIso8601String())
-        .orderBy('date', descending: true)
-        .get();
-    return snapshot.docs
-        .map((doc) =>
-            AttendanceModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-        .toList();
-  }
-
-  /// Ambil semua absensi pada 1 tanggal (dipakai admin dashboard).
-  Future<List<AttendanceModel>> getAll(DateTime date) async {
-    final start = DateTime(date.year, date.month, date.day);
-    final end = start.add(const Duration(days: 1));
-    final snapshot = await _ref
-        .where('date', isGreaterThanOrEqualTo: start.toIso8601String())
-        .where('date', isLessThan: end.toIso8601String())
-        .get();
-    return snapshot.docs
-        .map((doc) =>
-            AttendanceModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-        .toList();
+  Future<List<AttendanceModel>> getByRange(String uid, DateTime start, DateTime end) async {
+    final list = await _getRiwayatFromArray(uid);
+    final filtered = list.where((a) {
+      return a.date.isAfter(start.subtract(const Duration(seconds: 1))) &&
+             a.date.isBefore(end.add(const Duration(seconds: 1)));
+    }).toList();
+    filtered.sort((a, b) => b.date.compareTo(a.date));
+    return filtered;
   }
 
   Future<void> checkIn(AttendanceModel attendance) async {
-    await _ref
-        .doc(_dateId(attendance.uid, attendance.date))
-        .set(attendance.toMap(), SetOptions(merge: true));
+    final rawData = {
+      'statusHariIni': 'Hadir',
+      'waktu': Timestamp.fromDate(attendance.date),
+      'lokasi': attendance.checkInLocation != null 
+          ? '${attendance.checkInLocation!.lat}, ${attendance.checkInLocation!.lng}'
+          : '',
+      'waktuCheckOut': null, 
+    };
+    await _userRef.doc(attendance.uid).update({
+      'riwayatAbsensi': FieldValue.arrayUnion([rawData])
+    });
   }
 
+  // 🔥 SIMPAN PULANG + LOGIKA BATAS KERJA 7 JAM (LEMBUR)
   Future<void> checkOut(
     String uid,
     DateTime date,
@@ -81,10 +112,33 @@ class AttendanceRepository {
     Map<String, dynamic> checkOutLocation,
     String? checkOutPhotoUrl,
   ) async {
-    await _ref.doc(_dateId(uid, date)).set({
-      'checkOut': checkOutTime.toIso8601String(),
-      'checkOutLocation': checkOutLocation,
-      'checkOutPhotoUrl': checkOutPhotoUrl,
-    }, SetOptions(merge: true));
+    final doc = await _userRef.doc(uid).get();
+    if (!doc.exists) return;
+
+    final data = doc.data() as Map<String, dynamic>;
+    List<dynamic> riwayat = List.from(data['riwayatAbsensi'] ?? []);
+
+    if (riwayat.isNotEmpty) {
+      Map<String, dynamic> lastRecord = Map<String, dynamic>.from(riwayat.last);
+      
+      // Ambil jam masuk awal untuk pembanding
+      final Timestamp checkInTimestamp = lastRecord['waktu'];
+      final DateTime checkInTime = checkInTimestamp.toDate();
+      
+      // Kalkulasi selisih waktu kerja
+      final duration = checkOutTime.difference(checkInTime);
+      
+      lastRecord['waktuCheckOut'] = Timestamp.fromDate(checkOutTime);
+      
+      // Jika durasi kerja lebih dari atau sama dengan 7 jam, status jadi Lembur
+      if (duration.inHours >= 7) {
+        lastRecord['statusHariIni'] = 'Lembur';
+      } else {
+        lastRecord['statusHariIni'] = 'Hadir';
+      }
+      
+      riwayat[riwayat.length - 1] = lastRecord;
+      await _userRef.doc(uid).update({'riwayatAbsensi': riwayat});
+    }
   }
 }
