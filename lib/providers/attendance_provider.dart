@@ -12,8 +12,6 @@ class AttendanceProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   final AttendanceRepository _repository = AttendanceRepository();
 
-  // 🔴 Duplikasi _isLoading & isLoading di sini sudah dihapus
-
   AttendanceModel? _todayAttendance;
   AttendanceModel? get todayAttendance => _todayAttendance;
 
@@ -43,17 +41,21 @@ class AttendanceProvider extends ChangeNotifier {
   double get absenProgress =>
       (_monthlyAbsen / _workingDaysAssumption).clamp(0.0, 1.0);
 
-  // 🔥 BARU: Getter untuk cek apakah user sudah absen masuk tetapi belum pulang hari ini
-bool get isAlreadyCheckIn => 
-    _todayAttendance != null && _todayAttendance!.checkIn != null && _todayAttendance!.checkOut == null;
+  // 🔥 Getter untuk cek apakah user sudah absen masuk tetapi belum pulang hari ini
+  bool get isAlreadyCheckIn =>
+      _todayAttendance != null &&
+      _todayAttendance!.checkIn != null &&
+      _todayAttendance!.checkOut == null;
 
-  // 🔥 DIUBAH: Mengikuti alur status yang lebih dinamis setelah check-out
+  // 🔥 Mengikuti alur status yang lebih dinamis setelah check-out
   String get todayStatusLabel {
     if (_todayAttendance == null || _todayAttendance!.checkIn == null) {
       return 'Belum Absen';
     }
     if (_todayAttendance!.checkOut != null) {
-      return _todayAttendance!.status == 'lembur' ? 'Lembur Selesai' : 'Selesai Kerja';
+      return _todayAttendance!.status == 'lembur'
+          ? 'Lembur Selesai'
+          : 'Selesai Kerja';
     }
     return 'Sudah Masuk';
   }
@@ -97,14 +99,15 @@ bool get isAlreadyCheckIn =>
     try {
       final uid = _uid;
       if (uid != null) {
-        _attendanceHistory = await _repository.getRecentByUid(uid, limit: limit);
+        _attendanceHistory =
+            await _repository.getRecentByUid(uid, limit: limit);
       }
     } catch (e) {
       debugPrint('Error _loadRecentHistorySilent: $e');
     }
   }
 
-  // 🔥 DIUBAH: Perhitungan statistik bulanan agar sinkron dengan subkoleksi cuti_izin
+  // 🔥 Perhitungan statistik bulanan agar sinkron dengan subkoleksi cuti_izin
   Future<void> _loadMonthlySummarySilent() async {
     try {
       final uid = _uid;
@@ -119,9 +122,9 @@ bool get isAlreadyCheckIn =>
       _monthlyHadir = monthData
           .where((a) => a.status == 'hadir' || a.status == 'terlambat')
           .length;
-          
+
       // Ambil data lembur yang asalnya dari kalkulasi kerja >= 7 jam
-      _monthlyLembur = monthData.where((a) => a.status == 'lembur').length; 
+      _monthlyLembur = monthData.where((a) => a.status == 'lembur').length;
 
       // Ambil langsung jumlah izin/cuti yang berstatus "Setujui" dari repositori
       _monthlyAbsen = await _repository.getApprovedCutiIzinCount(uid);
@@ -156,7 +159,7 @@ bool get isAlreadyCheckIn =>
     }
   }
 
-  // 🔥 DIUBAH: Sinkronisasi untuk method publik loadMonthlySummary
+  // 🔥 Sinkronisasi untuk method publik loadMonthlySummary
   Future<void> loadMonthlySummary() async {
     final uid = _uid;
     if (uid == null) return;
@@ -224,7 +227,7 @@ bool get isAlreadyCheckIn =>
 
       await _repository.checkIn(attendance);
       _todayAttendance = attendance;
-      
+
       await loadAllHomeData();
       return true;
     } catch (e) {
@@ -295,12 +298,16 @@ bool get isAlreadyCheckIn =>
 
   void _recalculatePeriodStats() {
     _periodHadir = _historyList.where((a) => a.status == 'hadir').length;
-    _periodTerlambat = _historyList.where((a) => a.status == 'terlambat').length;
-    _periodIzin = _historyList.where((a) => a.status == 'izin' || a.status == 'cuti').length;
+    _periodTerlambat =
+        _historyList.where((a) => a.status == 'terlambat').length;
+    _periodIzin = _historyList
+        .where((a) => a.status == 'izin' || a.status == 'cuti')
+        .length;
     _periodAbsen = _historyList.where((a) => a.status == 'absen').length;
   }
 
-  Future<void> loadHistoryByFilter({required AttendanceHistoryFilter filter}) async {
+  Future<void> loadHistoryByFilter(
+      {required AttendanceHistoryFilter filter}) async {
     final now = DateTime.now();
     late DateTime start;
     final end = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -311,7 +318,8 @@ bool get isAlreadyCheckIn =>
         break;
       case AttendanceHistoryFilter.thisWeek:
         final mondayThisWeek = now.subtract(Duration(days: now.weekday - 1));
-        start = DateTime(mondayThisWeek.year, mondayThisWeek.month, mondayThisWeek.day);
+        start = DateTime(
+            mondayThisWeek.year, mondayThisWeek.month, mondayThisWeek.day);
         break;
       case AttendanceHistoryFilter.thisMonth:
         start = DateTime(now.year, now.month, 1);
@@ -320,7 +328,8 @@ bool get isAlreadyCheckIn =>
     await loadHistoryByRange(start: start, end: end);
   }
 
-  Future<void> loadHistoryByRange({required DateTime start, required DateTime end}) async {
+  Future<void> loadHistoryByRange(
+      {required DateTime start, required DateTime end}) async {
     final uid = _uid;
     if (uid == null) return;
 
@@ -339,16 +348,16 @@ bool get isAlreadyCheckIn =>
     }
   }
 
-  // 💡 Catatan: Method doCheckOut ini tetap dipertahankan tanpa parameter 
+  // 💡 Catatan: Method doCheckOut ini tetap dipertahankan tanpa parameter
   // agar CheckOutScreen lo gak error saat memanggilnya.
   Future<void> doCheckOut() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      await loadAllHomeData(); 
+      await loadAllHomeData();
     } catch (e) {
-      rethrow; 
+      rethrow;
     } finally {
       _isLoading = false;
       notifyListeners();

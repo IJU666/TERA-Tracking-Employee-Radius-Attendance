@@ -346,7 +346,7 @@ class _LeaveFormScreenState extends State<LeaveFormScreen> {
         DropdownButtonFormField<String>(
           initialValue: _selectedJenisIzin,
           decoration: _inputDecoration('Pilih jenis izin', null),
-          items: ['Sakit dengan Surat Dokter', 'Keperluan Keluarga', 'Lainnya']
+          items: ['Mengurus Administrasi', 'Keperluan Keluarga', 'Lainnya']
               .map((label) => DropdownMenuItem(value: label, child: Text(label)))
               .toList(),
           onChanged: (value) => setState(() => _selectedJenisIzin = value),

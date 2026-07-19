@@ -24,6 +24,8 @@ import 'screens/admin/employee_management_screen.dart';
 import 'screens/admin/leave_approval_screen.dart';
 import 'screens/admin/admin_setting_screen.dart';
 import 'screens/setting/change_password_screen.dart';
+import 'screens/notification/notification_screen.dart';
+import 'screens/notification/employee_notification_screen.dart'; // Tambahan untuk detail karyawan
 
 // =====================================================================
 // IMPORT BARU UNTUK DASHBOARD MANAGER
@@ -81,7 +83,8 @@ class MyApp extends StatelessWidget {
           AppRoutes.leaveApproval: (_) => const LeaveApprovalScreen(), 
           AppRoutes.AdminSettingScreen: (_) => const AdminSettingScreen(),
           AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
-          
+          AppRoutes.notification: (_) => const NotificationScreen(),
+          AppRoutes.employeeNotification: (_) => const EmployeeNotificationScreen(), // Tambahan untuk detail notifikasi   karyawan
           // =====================================================================
           // REGISTRASI RUTE UNTUK MANAGER
           // =====================================================================

@@ -33,11 +33,14 @@ class OfficeProvider extends ChangeNotifier {
     }
   }
 
+  // 🎯 PARAMETER DIPERBARUI: Menerima jamMasuk dan toleransi dari UI screen
   Future<bool> saveOffice({
     required String nama,
     required double latitude,
     required double longitude,
     required double radius,
+    required String jamMasuk, // 🟢 Parameter Baru
+    required int toleransi,   // 🟢 Parameter Baru
   }) async {
     _isSaving = true;
     _errorMessage = null;
@@ -50,6 +53,8 @@ class OfficeProvider extends ChangeNotifier {
         latitude: latitude,
         longitude: longitude,
         radius: radius,
+        jamMasuk: jamMasuk,   // 🟢 Teruskan ke model
+        toleransi: toleransi, // 🟢 Teruskan ke model
       );
 
       // 1. Simpan data baru ke Firestore

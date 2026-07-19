@@ -37,7 +37,8 @@ class UserProvider extends ChangeNotifier {
     required String nama,
     required String nik,
     required String divisi,
-    required String jabatan,
+    required String jabatan, 
+    required String avatarUrl,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -54,6 +55,7 @@ class UserProvider extends ChangeNotifier {
         nik: nik,
         divisi: divisi,
         jabatan: jabatan,
+        avatarUrl: avatarUrl,
       );
 
       await _userRepository.updateUser(updatedUser);

@@ -1,10 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/leave_model.dart';
+import '../models/notification_model.dart';
+import '../repositories/notification_repository.dart';
 
 class LeaveProvider with ChangeNotifier {
   // 1. Inisialisasi Firestore disatukan agar tidak ada duplikasi variabel
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // Dipakai untuk menulis notifikasi ke karyawan saat status diupdate.
+  final NotificationRepository _notificationRepository =
+      NotificationRepository();
 
   // State untuk indikator loading
   bool _isLoading = false;
@@ -150,6 +156,52 @@ class LeaveProvider with ChangeNotifier {
         });
       }
 
+      // =================================================================
+      // 🔔 BAGIAN BARU: kirim notifikasi ke karyawan setelah status
+      // berhasil diupdate. Sebelumnya tidak ada, makanya
+      // employee_notification_screen.dart selalu kosong walau status di
+      // Firestore sudah berubah.
+      //
+      // `type` di NotificationModel di-map jadi salah satu dari:
+      // 'cuti_disetujui' | 'cuti_ditolak' | 'izin_disetujui' | 'izin_ditolak'
+      // — ini harus PERSIS sama dengan yang dicek di
+      // _EmployeeNotificationTile._visual (employee_notification_screen.dart),
+      // supaya ikon & badge "Disetujui"/"Ditolak" muncul dengan benar.
+      // =================================================================
+      final bool isApproved = status == 'Disetujui' || status == 'Setujui';
+      final String jenisLower =
+          jenis.toLowerCase().contains('cuti') ? 'cuti' : 'izin';
+      final String jenisLabel = jenisLower == 'cuti' ? 'Cuti' : 'Izin';
+      final String namaManagerFinal =
+          (namaManager != null && namaManager.isNotEmpty)
+              ? namaManager
+              : 'Manager';
+
+      try {
+        await _notificationRepository.create(
+          employeeUid,
+          NotificationModel(
+            id: '',
+            title: 'Pengajuan $jenisLabel '
+                '${isApproved ? "Disetujui" : "Ditolak"}',
+            body: isApproved
+                ? 'Pengajuan $jenisLabel kamu telah disetujui oleh '
+                    '$namaManagerFinal.'
+                : 'Pengajuan $jenisLabel kamu ditolak oleh '
+                    '$namaManagerFinal.'
+                    '${keteranganManager.isNotEmpty ? " Catatan: $keteranganManager" : ""}',
+            type: '${jenisLower}_${isApproved ? "disetujui" : "ditolak"}',
+            isRead: false,
+            createdAt: DateTime.now(),
+          ),
+        );
+      } catch (e) {
+        // Sengaja tidak menggagalkan seluruh proses approve/reject kalau
+        // notifikasinya gagal terkirim (misal karena error jaringan) —
+        // status leave-nya sendiri sudah berhasil diupdate di atas.
+        debugPrint('Gagal mengirim notifikasi ke karyawan: $e');
+      }
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -157,4 +209,4 @@ class LeaveProvider with ChangeNotifier {
       return false;
     }
   }
-}
+} 

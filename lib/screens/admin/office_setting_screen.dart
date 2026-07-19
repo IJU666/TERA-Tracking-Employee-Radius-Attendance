@@ -29,6 +29,10 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   final _searchController = TextEditingController();
   final MapController _mapController = MapController();
 
+  // 🟢 STATE BARU UNTUK JADWAL
+  TimeOfDay _jamMasuk = const TimeOfDay(hour: 8, minute: 0);
+  final _toleransiController = TextEditingController(text: '15');
+
   LatLng _selectedLatLng = const LatLng(-6.2088, 106.8456); // default Jakarta
   double _radius = 50;
   bool _initializedFromData = false;
@@ -41,7 +45,6 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   @override
   void initState() {
     super.initState();
-    // Memuat data dari Firestore saat halaman pertama kali dibuka
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<OfficeProvider>().loadOffice();
       _applyLoadedData();
@@ -55,9 +58,19 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
         _namaController.text = office.nama;
         _selectedLatLng = LatLng(office.latitude, office.longitude);
         _radius = office.radius;
+        
+        // 🟢 LOAD DATA JAM MASUK & TOLERANSI DARI FIRESTORE
+        if (office.jamMasuk != null && office.jamMasuk!.contains(':')) {
+          final splitTime = office.jamMasuk!.split(':');
+          _jamMasuk = TimeOfDay(
+            hour: int.parse(splitTime[0]), 
+            minute: int.parse(splitTime[1]),
+          );
+        }
+        _toleransiController.text = (office.toleransi ?? 15).toString();
+
         _initializedFromData = true;
       });
-      // Peta langsung diarahkan ke lokasi kantor yang tersimpan di database
       _mapController.move(_selectedLatLng, 15);
     }
   }
@@ -66,6 +79,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   void dispose() {
     _namaController.dispose();
     _searchController.dispose();
+    _toleransiController.dispose(); // 🟢 DISPOSE CONTROLLER BARU
     _debounce?.cancel();
     super.dispose();
   }
@@ -137,11 +151,18 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
 
     setState(() => _saving = true);
 
+    // 🟢 FORMAT JAM MENJADI STRING "HH:mm" & AMBIL TOLERANSI
+    final String formattedJamMasuk = 
+        '${_jamMasuk.hour.toString().padLeft(2, '0')}:${_jamMasuk.minute.toString().padLeft(2, '0')}';
+    final int toleransiMenit = int.tryParse(_toleransiController.text.trim()) ?? 15;
+
     final success = await context.read<OfficeProvider>().saveOffice(
           nama: _namaController.text.trim(),
           latitude: _selectedLatLng.latitude,
           longitude: _selectedLatLng.longitude,
           radius: _radius,
+          jamMasuk: formattedJamMasuk, // 🟢 DIKIRIM KE PROVIDER
+          toleransi: toleransiMenit,   // 🟢 DIKIRIM KE PROVIDER
         );
 
     if (!mounted) return;
@@ -149,7 +170,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? 'Pengaturan lokasi berhasil disimpan ke Firestore' : 'Gagal menyimpan pengaturan'),
+        content: Text(success ? 'Pengaturan berhasil disimpan ke Firestore' : 'Gagal menyimpan pengaturan'),
         backgroundColor: success ? AppColors.success : Colors.red,
       ),
     );
@@ -158,7 +179,6 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Memantau state loading dan error dari OfficeProvider
     final officeProvider = context.watch<OfficeProvider>();
 
     return Scaffold(
@@ -168,7 +188,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.primary),
         title: const Text(
-          'Pengaturan Lokasi Kantor',
+          'Pengaturan Lokasi & Jadwal',
           style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
@@ -178,14 +198,8 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
           ),
         ],
       ),
-      // OPTIMASI 1: Jika masih loading mengambil data dari Firestore, tampilkan Loading Indicator
       body: officeProvider.isLoading 
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-            )
-          // OPTIMASI 2: Jika gagal meload data (misal masalah internet), tampilkan error screen beserta tombol retry
+          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary)))
           : officeProvider.errorMessage != null
               ? Center(
                   child: Padding(
@@ -195,11 +209,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                       children: [
                         const Icon(Icons.wifi_off_rounded, size: 64, color: Colors.grey),
                         const SizedBox(height: 16),
-                        Text(
-                          'Gagal memuat data: ${officeProvider.errorMessage}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
+                        Text('Gagal memuat data: ${officeProvider.errorMessage}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () async {
@@ -234,7 +244,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                                       children: [
                                         _buildLabel('Latitude'),
                                         const SizedBox(height: 8),
-                                        _buildCoordField(_selectedLatLng.latitude.toStringAsFixed(6)), // Ditingkatkan ke 6 desimal agar koordinat lebih presisi
+                                        _buildCoordField(_selectedLatLng.latitude.toStringAsFixed(6)),
                                       ],
                                     ),
                                   ),
@@ -252,6 +262,65 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                                 ],
                               ),
                               const SizedBox(height: 20),
+                              
+                              // 🟢 SECTION BARU: INPUT JAM MASUK & TOLERANSI
+                              _buildLabel('Jadwal Absensi Kantor'),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: InkWell(
+                                      onTap: () async {
+                                        final TimeOfDay? picked = await showTimePicker(
+                                          context: context,
+                                          initialTime: _jamMasuk,
+                                        );
+                                        if (picked != null) {
+                                          setState(() => _jamMasuk = picked);
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surface,
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(color: AppColors.border),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Jam Masuk: ${_jamMasuk.format(context)}',
+                                              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                                            ),
+                                            const Icon(Icons.access_time_rounded, size: 18, color: AppColors.primary),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _toleransiController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: 'Toleransi (Menit)',
+                                        labelStyle: TextStyle(fontSize: 12, color: AppColors.textHint),
+                                        suffixText: 'Min',
+                                        filled: true,
+                                        fillColor: AppColors.surface,
+                                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+                                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+                                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
@@ -259,22 +328,13 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                                     children: [
                                       const Icon(Icons.location_searching_rounded, size: 18, color: AppColors.primary),
                                       const SizedBox(width: 6),
-                                      const Text(
-                                        'Radius Geofence',
-                                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-                                      ),
+                                      const Text('Radius Geofence', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                                     ],
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      '${_radius.toInt()} m',
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                                    ),
+                                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(20)),
+                                    child: Text('${_radius.toInt()} m', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
                                   ),
                                 ],
                               ),
@@ -311,22 +371,13 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                                     backgroundColor: AppColors.primary,
                                     foregroundColor: Colors.white,
                                     elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                   ),
                                   onPressed: _saving ? null : _handleSave,
                                   icon: _saving
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        )
+                                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                       : const Icon(Icons.cloud_upload_outlined, size: 20),
-                                  label: Text(
-                                    _saving ? 'Menyimpan...' : 'Simpan Pengaturan',
-                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                                  ),
+                                  label: Text(_saving ? 'Menyimpan...' : 'Simpan Pengaturan', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                                 ),
                               ),
                             ],
@@ -362,10 +413,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                   },
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.tera.attendance',
-                  ),
+                  TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.tera.attendance'),
                   CircleLayer(
                     circles: [
                       CircleMarker(
@@ -399,11 +447,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
             child: Column(
               children: [
                 Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
                   child: TextField(
                     controller: _searchController,
                     onChanged: _onSearchChanged,
@@ -412,22 +456,9 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                       hintStyle: TextStyle(fontSize: 13, color: AppColors.textHint),
                       prefixIcon: Icon(Icons.search_rounded, size: 20, color: AppColors.textHint),
                       suffixIcon: _isSearching
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            )
+                          ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)))
                           : (_searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() => _searchResults = []);
-                                  },
-                                )
+                              ? IconButton(icon: const Icon(Icons.close_rounded, size: 18), onPressed: () { _searchController.clear(); setState(() => _searchResults = []); })
                               : null),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -438,11 +469,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                   Container(
                     margin: const EdgeInsets.only(top: 4),
                     constraints: const BoxConstraints(maxHeight: 180),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
-                    ),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
                     child: ListView.separated(
                       shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -453,40 +480,13 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
                         return ListTile(
                           dense: true,
                           leading: Icon(Icons.location_on_outlined, size: 18, color: AppColors.primary),
-                          title: Text(
-                            result.displayName,
-                            style: const TextStyle(fontSize: 12),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          title: Text(result.displayName, style: const TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
                           onTap: () => _selectSearchResult(result),
                         );
                       },
                     ),
                   ),
               ],
-            ),
-          ),
-          Positioned(
-            bottom: 14,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.touch_app_outlined, size: 14, color: Colors.white),
-                    SizedBox(width: 6),
-                    Text('Cari atau ketuk peta untuk pilih lokasi', style: TextStyle(fontSize: 12, color: Colors.white)),
-                  ],
-                ),
-              ),
             ),
           ),
         ],
@@ -506,18 +506,9 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
         filled: true,
         fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.border)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -525,11 +516,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
   Widget _buildCoordField(String value) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
+      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -544,10 +531,7 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.success.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -557,15 +541,9 @@ class _OfficeSettingScreenState extends State<OfficeSettingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Radius aktif: ${_radius.toInt()} meter',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.success),
-                ),
+                Text('Radius aktif: ${_radius.toInt()} meter', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.success)),
                 const SizedBox(height: 2),
-                const Text(
-                  'Karyawan dapat absen di dalam area ini.',
-                  style: TextStyle(fontSize: 12, color: AppColors.success),
-                ),
+                const Text('Karyawan dapat absen di dalam area ini.', style: TextStyle(fontSize: 12, color: AppColors.success)),
               ],
             ),
           ),

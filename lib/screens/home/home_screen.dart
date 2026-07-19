@@ -147,7 +147,7 @@ class _HomeContent extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.notifications_none_rounded, color: Colors.black87),
               onPressed: () {
-                Navigator.pushNamed(context, AppRoutes.notification);
+                Navigator.pushNamed(context, AppRoutes.employeeNotification);
               },
             ),
             if (unreadCount > 0)

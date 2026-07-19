@@ -29,4 +29,5 @@ class AppRoutes {
   static const String AdminSettingScreen = '/admin-setting';
 
   static const String notification = '/notification';
+  static const String employeeNotification = '/employee-notification'; // RUTE BARU UNTUK DETAIL NOTIFIKASI KARYAWAN
 }

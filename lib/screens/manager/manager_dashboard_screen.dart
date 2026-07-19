@@ -6,6 +6,7 @@ import '../../models/leave_model.dart';
 import '../../providers/leave_provider.dart';
 import '../../core/routes/app_routes.dart';
 
+
 class ManagerDashboardScreen extends StatefulWidget {
   const ManagerDashboardScreen({super.key});
 

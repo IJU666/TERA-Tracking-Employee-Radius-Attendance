@@ -6,7 +6,9 @@ class OfficeModel {
   final double latitude;
   final double longitude;
   final double radius; // dalam meter
-  final DateTime? updatedAt; // Tambahan untuk tracking perubahan terakhir
+  final String? jamMasuk; // 🟢 Field Baru: Menyimpan format "HH:mm"
+  final int? toleransi;   // 🟢 Field Baru: Menyimpan angka menit toleransi
+  final DateTime? updatedAt; 
 
   const OfficeModel({
     required this.id,
@@ -14,6 +16,8 @@ class OfficeModel {
     required this.latitude,
     required this.longitude,
     required this.radius,
+    this.jamMasuk, // 🟢 Masuk ke constructor
+    this.toleransi, // 🟢 Masuk ke constructor
     this.updatedAt,
   });
 
@@ -23,6 +27,8 @@ class OfficeModel {
     double? latitude,
     double? longitude,
     double? radius,
+    String? jamMasuk, // 🟢 Ditambahkan ke copyWith
+    int? toleransi,   // 🟢 Ditambahkan ke copyWith
     DateTime? updatedAt,
   }) {
     return OfficeModel(
@@ -31,6 +37,8 @@ class OfficeModel {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       radius: radius ?? this.radius,
+      jamMasuk: jamMasuk ?? this.jamMasuk, // 🟢 Ditambahkan ke copyWith
+      toleransi: toleransi ?? this.toleransi, // 🟢 Ditambahkan ke copyWith
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -39,11 +47,11 @@ class OfficeModel {
     return OfficeModel(
       id: id,
       nama: map['nama'] ?? '-',
-      // Amankan casting menggunakan 'as num?' sebelum diubah ke double
-      // Ini mencegah crash jika Firestore tidak sengaja menyimpannya sebagai int
       latitude: (map['latitude'] as num? ?? 0.0).toDouble(),
       longitude: (map['longitude'] as num? ?? 0.0).toDouble(),
       radius: (map['radius'] as num? ?? 50.0).toDouble(),
+      jamMasuk: map['jam_masuk'] as String?, // 🟢 Mapping data dari Firestore
+      toleransi: map['toleransi_menit'] as int?, // 🟢 Mapping data dari Firestore
       updatedAt: map['updatedAt'] != null 
           ? (map['updatedAt'] as Timestamp).toDate() 
           : null,
@@ -56,7 +64,8 @@ class OfficeModel {
       'latitude': latitude,
       'longitude': longitude,
       'radius': radius,
-      // Otomatis mencatat waktu server Firebase saat data disimpan/diubah
+      'jam_masuk': jamMasuk, // 🟢 Disimpan ke Firestore
+      'toleransi_menit': toleransi, // 🟢 Disimpan ke Firestore
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }

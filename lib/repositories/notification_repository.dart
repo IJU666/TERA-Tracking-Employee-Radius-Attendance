@@ -1,14 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import '../models/notification_model.dart';
 
-/// Repository untuk data notifikasi di koleksi 'notifications'
-/// (sub-koleksi per user: notifications/{uid}/items/{id}).
+/// Repository untuk data notifikasi di sub-koleksi milik user
+/// Jalur Firestore: users/{uid}/notifications/{id}
 class NotificationRepository {
+  
+  // 🎯 PERUBAHAN DI SINI: Jalur dipindahkan ke dalam subkoleksi dokumen user
   CollectionReference _itemsRef(String uid) => FirebaseFirestore.instance
-      .collection('notifications')
+      .collection('users')
       .doc(uid)
-      .collection('items');
+      .collection('notifications');
 
   Stream<List<NotificationModel>> getByUid(String uid) {
     return _itemsRef(uid)
