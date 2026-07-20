@@ -19,13 +19,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
   _HistoryFilter _selectedFilter = _HistoryFilter.hariIni;
   DateTimeRange? _customRange;
 
+  // 🔥 Filter status (Hadir/Terlambat/Absen/Izin). null = tampilkan semua.
+  String? _selectedStatus;
+
+  void _onStatusChipTap(String status) {
+    setState(() {
+      _selectedStatus = _selectedStatus == status ? null : status;
+    });
+  }
+
+  List<AttendanceModel> _applyStatusFilter(List<AttendanceModel> source) {
+    if (_selectedStatus == null) return source;
+    if (_selectedStatus == 'izin') {
+      return source
+          .where((a) => a.status == 'izin' || a.status == 'cuti')
+          .toList();
+    }
+    return source.where((a) => a.status == _selectedStatus).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AttendanceProvider>().loadHistoryByFilter(
-            filter: AttendanceHistoryFilter.today,
-          );
+        filter: AttendanceHistoryFilter.today,
+      );
     });
   }
 
@@ -45,9 +64,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       });
       if (!mounted) return;
       context.read<AttendanceProvider>().loadHistoryByRange(
-            start: picked.start,
-            end: picked.end,
-          );
+        start: picked.start,
+        end: picked.end,
+      );
       return;
     }
 
@@ -72,7 +91,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final attendance = context.watch<AttendanceProvider>();
-    final history = attendance.historyList;
+    final history = _applyStatusFilter(attendance.historyList);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -82,12 +101,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
           'Riwayat Absensi',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
         ),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_outlined, color: AppColors.textPrimary),
+            icon: const Icon(
+              Icons.file_download_outlined,
+              color: AppColors.textPrimary,
+            ),
             onPressed: () {
               // TODO: export riwayat ke PDF/Excel (belum diimplementasi)
               ScaffoldMessenger.of(context).showSnackBar(
@@ -109,18 +135,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
               child: attendance.isLoadingHistory
                   ? const Center(child: CircularProgressIndicator())
                   : history.isEmpty
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
-                          onRefresh: () => _onFilterTap(_selectedFilter),
-                          child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                            itemCount: history.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) => _HistoryCard(
-                              attendance: history[index],
-                            ),
-                          ),
-                        ),
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: () => _onFilterTap(_selectedFilter),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+                        itemCount: history.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) =>
+                            _HistoryCard(attendance: history[index]),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -193,57 +218,113 @@ class _HistoryScreenState extends State<HistoryScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         children: [
-          _statChip('Hadir', attendance.periodHadir, AppColors.statusHadirText),
+          _statChip(
+            'hadir',
+            'Hadir',
+            attendance.periodHadir,
+            AppColors.statusHadirText,
+          ),
           const SizedBox(width: 8),
-          _statChip('Terlambat', attendance.periodTerlambat, AppColors.statusTerlambatText),
+          _statChip(
+            'terlambat',
+            'Terlambat',
+            attendance.periodTerlambat,
+            AppColors.statusTerlambatText,
+          ),
           const SizedBox(width: 8),
-          _statChip('Absen', attendance.periodAbsen, AppColors.statusAbsenText),
+          _statChip(
+            'absen',
+            'Absen',
+            attendance.periodAbsen,
+            AppColors.statusAbsenText,
+          ),
           const SizedBox(width: 8),
-          _statChip('Izin', attendance.periodIzin, AppColors.statusIzinText),
+          _statChip(
+            'izin',
+            'Izin',
+            attendance.periodIzin,
+            AppColors.statusIzinText,
+          ),
         ],
       ),
     );
   }
 
-  Widget _statChip(String label, int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$label $count',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
-          ),
-        ],
+  Widget _statChip(String statusKey, String label, int count, Color color) {
+    final bool active = _selectedStatus == statusKey;
+    return InkWell(
+      onTap: () => _onStatusChipTap(statusKey),
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? color : color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(18),
+          border: active ? Border.all(color: color, width: 1.2) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: active ? Colors.white : color,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '$label $count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState() {
+    final message = _selectedStatus == null
+        ? 'Belum ada riwayat pada periode ini'
+        : 'Tidak ada riwayat dengan status "${_statusLabel(_selectedStatus!)}" pada periode ini';
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.inbox_outlined, size: 48, color: AppColors.border),
           const SizedBox(height: 12),
-          Text(
-            'Belum ada riwayat pada periode ini',
-            style: TextStyle(color: AppColors.textHint, fontSize: 13),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textHint, fontSize: 13),
+            ),
           ),
         ],
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'hadir':
+        return 'Hadir';
+      case 'terlambat':
+        return 'Terlambat';
+      case 'absen':
+        return 'Absen';
+      case 'izin':
+        return 'Izin';
+      default:
+        return status;
+    }
   }
 }
 
@@ -304,16 +385,28 @@ class _HistoryCard extends StatelessWidget {
         children: [
           Text(
             DateFormatter.formatDayNumber(attendance.date),
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           Text(
             DateFormatter.formatMonthShort(attendance.date),
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             DateFormatter.formatDayName(attendance.date).toUpperCase(),
-            style: TextStyle(fontSize: 9, color: color.withOpacity(0.7), letterSpacing: 0.3),
+            style: TextStyle(
+              fontSize: 9,
+              color: color.withOpacity(0.7),
+              letterSpacing: 0.3,
+            ),
           ),
         ],
       ),
@@ -325,7 +418,11 @@ class _HistoryCard extends StatelessWidget {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.description_outlined, size: 18, color: AppColors.textSecondary),
+          Icon(
+            Icons.description_outlined,
+            size: 18,
+            color: AppColors.textSecondary,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -352,7 +449,11 @@ class _HistoryCard extends StatelessWidget {
           Expanded(
             child: Text(
               'Tidak ada data kehadiran',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: config.color),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: config.color,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -377,7 +478,11 @@ class _HistoryCard extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.access_time_rounded, size: 16, color: AppColors.textHint),
+            Icon(
+              Icons.access_time_rounded,
+              size: 16,
+              color: AppColors.textHint,
+            ),
             const SizedBox(width: 6),
             Expanded(
               child: Column(
@@ -385,9 +490,21 @@ class _HistoryCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Text('Masuk', style: TextStyle(fontSize: 11, color: AppColors.textHint)),
+                      Text(
+                        'Masuk',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textHint,
+                        ),
+                      ),
                       const SizedBox(width: 24),
-                      Text('Pulang', style: TextStyle(fontSize: 11, color: AppColors.textHint)),
+                      Text(
+                        'Pulang',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textHint,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 2),
@@ -402,12 +519,14 @@ class _HistoryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 20),
-                      const Text(
-                        '',
-                      ),
+                      const Text(''),
                       Text(
                         checkOut,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ],
                   ),
@@ -420,11 +539,18 @@ class _HistoryCard extends StatelessWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            Icon(Icons.location_on_outlined, size: 14, color: AppColors.textHint),
+            Icon(
+              Icons.location_on_outlined,
+              size: 14,
+              color: AppColors.textHint,
+            ),
             const SizedBox(width: 4),
             Text(
               'Jarak ${distance != null ? distance.toStringAsFixed(0) : '-'} m',
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -441,7 +567,11 @@ class _HistoryCard extends StatelessWidget {
       ),
       child: Text(
         config.label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: config.color),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: config.color,
+        ),
       ),
     );
   }
@@ -451,7 +581,10 @@ class _HistoryCard extends StatelessWidget {
       case 'hadir':
         return _StatusConfig(label: 'HADIR', color: AppColors.statusHadirText);
       case 'terlambat':
-        return _StatusConfig(label: 'TERLAMBAT', color: AppColors.statusTerlambatText);
+        return _StatusConfig(
+          label: 'TERLAMBAT',
+          color: AppColors.statusTerlambatText,
+        );
       case 'izin':
       case 'cuti':
         return _StatusConfig(label: 'IZIN', color: AppColors.statusIzinText);

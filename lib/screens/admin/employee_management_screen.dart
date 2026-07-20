@@ -1,19 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'employee_detail_screen.dart';
-import 'employee_form_screen.dart'; 
+import 'employee_form_screen.dart';
 
 class EmployeeManagementScreen extends StatefulWidget {
   const EmployeeManagementScreen({super.key});
 
   @override
-  State<EmployeeManagementScreen> createState() => _EmployeeManagementScreenState();
+  State<EmployeeManagementScreen> createState() =>
+      _EmployeeManagementScreenState();
 }
 
 class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   String selectedFilter = 'Semua';
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = '';
+
+  // 🔥 Stream dibuat SEKALI di initState, bukan di build().
+  // Kalau dibuat di build(), setiap setState() (misal saat ngetik di search box)
+  // akan membuat instance Stream baru -> StreamBuilder unsubscribe-subscribe ulang
+  // -> sempat balik ke ConnectionState.waiting -> layar kedip nampilin spinner.
+  late final Stream<QuerySnapshot> _employeesStream = FirebaseFirestore.instance
+      .collection('users')
+      .where('role', isEqualTo: 'karyawan')
+      .snapshots();
 
   @override
   void dispose() {
@@ -35,18 +45,24 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
             } else {
-              Navigator.of(context).pop(); // Fallback langsung pop jika routes standar
+              Navigator.of(
+                context,
+              ).pop(); // Fallback langsung pop jika routes standar
             }
           },
         ),
         title: const Text(
           'Kelola Karyawan',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: Color(0xFF0D47A1),
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton(
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(16)), 
+          borderRadius: BorderRadius.all(Radius.circular(16)),
         ),
         backgroundColor: const Color(0xFF0D47A1),
         onPressed: () {
@@ -70,13 +86,18 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .where('role', isEqualTo: 'karyawan')
-            .snapshots(),
+        stream: _employeesStream,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          // 🔥 Hanya tampilkan spinner full-screen saat BENAR-BENAR belum
+          // pernah ada data sama sekali (initial load). Setelah itu, meskipun
+          // stream reconnect/emit ulang, kita tetap pakai data lama agar
+          // tidak flicker saat searchQuery/selectedFilter berubah.
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Gagal memuat data: ${snapshot.error}'));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text('Tidak ada data karyawan.'));
@@ -85,21 +106,38 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           var docs = snapshot.data!.docs;
 
           int total = docs.length;
-          int hadir = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Hadir').length;
-          int absen = docs.where((d) => (d.data() as Map<String, dynamic>)['statusHariIni'] == 'Tidak Hadir').length;
+          int hadir = docs
+              .where(
+                (d) =>
+                    (d.data() as Map<String, dynamic>)['statusHariIni'] ==
+                    'Hadir',
+              )
+              .length;
+          int absen = docs
+              .where(
+                (d) =>
+                    (d.data() as Map<String, dynamic>)['statusHariIni'] ==
+                    'Tidak Hadir',
+              )
+              .length;
 
           var filteredDocs = docs.where((d) {
             var data = d.data() as Map<String, dynamic>;
             String nama = (data['nama'] ?? '').toString().toLowerCase();
             String nik = (data['nik'] ?? '').toString().toLowerCase();
-            bool matchesSearch = nama.contains(searchQuery.toLowerCase()) || nik.contains(searchQuery.toLowerCase());
+            bool matchesSearch =
+                nama.contains(searchQuery.toLowerCase()) ||
+                nik.contains(searchQuery.toLowerCase());
 
             if (!matchesSearch) return false;
 
             if (selectedFilter == 'Semua') return true;
-            if (selectedFilter == 'Hadir') return data['statusHariIni'] == 'Hadir';
-            if (selectedFilter == 'Tidak Hadir') return data['statusHariIni'] == 'Tidak Hadir';
-            if (selectedFilter == 'Cuti/') return data['statusHariIni'] == 'Izin/Cuti';
+            if (selectedFilter == 'Hadir')
+              return data['statusHariIni'] == 'Hadir';
+            if (selectedFilter == 'Tidak Hadir')
+              return data['statusHariIni'] == 'Tidak Hadir';
+            if (selectedFilter == 'Cuti')
+              return data['statusHariIni'] == 'Izin/Cuti';
             return true;
           }).toList();
 
@@ -110,11 +148,32 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               children: [
                 Row(
                   children: [
-                    Expanded(child: _buildSummaryCard('$total', 'TOTAL', const Color(0xFFF1F3F9), const Color(0xFF0D47A1))),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        '$total',
+                        'TOTAL',
+                        const Color(0xFFF1F3F9),
+                        const Color(0xFF0D47A1),
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildSummaryCard('$hadir', 'HADIR', const Color(0xFFE8F5E9), const Color(0xFF2E7D32))),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        '$hadir',
+                        'HADIR',
+                        const Color(0xFFE8F5E9),
+                        const Color(0xFF2E7D32),
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Expanded(child: _buildSummaryCard('$absen', 'ABSEN', const Color(0xFFFFEBEE), const Color(0xFFC62828))),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        '$absen',
+                        'ABSEN',
+                        const Color(0xFFFFEBEE),
+                        const Color(0xFFC62828),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -141,7 +200,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: ['Semua', 'Hadir', 'Tidak Hadir', 'Cuti/'].map((filter) {
+                    children: ['Semua', 'Hadir', 'Tidak Hadir', 'Cuti'].map((
+                      filter,
+                    ) {
                       bool isSelected = selectedFilter == filter;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8.0),
@@ -150,7 +211,9 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                           selected: isSelected,
                           selectedColor: const Color(0xFF0D47A1),
                           backgroundColor: const Color(0xFFEEEEEE),
-                          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                          ),
                           onSelected: (bool selected) {
                             setState(() {
                               selectedFilter = filter;
@@ -164,7 +227,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                 const SizedBox(height: 20),
                 Text(
                   'DAFTAR KARYAWAN (${filteredDocs.length})',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                    letterSpacing: 1.2,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 ListView.builder(
@@ -174,11 +242,11 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                   itemBuilder: (context, index) {
                     var doc = filteredDocs[index];
                     var data = doc.data() as Map<String, dynamic>;
-                    
+
                     return _buildKaryawanCard(context, doc.id, data);
                   },
                 ),
-                const SizedBox(height: 80), 
+                const SizedBox(height: 80),
               ],
             ),
           );
@@ -187,7 +255,12 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String count, String label, Color bgColor, Color textColor) {
+  Widget _buildSummaryCard(
+    String count,
+    String label,
+    Color bgColor,
+    Color textColor,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
@@ -197,15 +270,33 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       ),
       child: Column(
         children: [
-          Text(count, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.grey)),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildKaryawanCard(BuildContext context, String docId, Map<String, dynamic> data) {
+  Widget _buildKaryawanCard(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) {
     Color badgeColor;
     Color textColor;
     String status = data['statusHariIni'] ?? 'Hadir';
@@ -230,14 +321,17 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EmployeeDetailScreen(docId: docId, karyawanData: data),
+              builder: (context) =>
+                  EmployeeDetailScreen(docId: docId, karyawanData: data),
             ),
           );
         },
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 26,
-          backgroundImage: NetworkImage(data['avatarUrl'] ?? 'https://via.placeholder.com/150'),
+          backgroundImage: NetworkImage(
+            data['avatarUrl'] ?? 'https://via.placeholder.com/150',
+          ),
         ),
         title: Text(
           data['nama'] ?? '-',
@@ -249,8 +343,14 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)),
-                child: Text(data['nik'] ?? '-', style: const TextStyle(fontSize: 11, color: Colors.black)),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  data['nik'] ?? '-',
+                  style: const TextStyle(fontSize: 11, color: Colors.black),
+                ),
               ),
               const SizedBox(width: 8),
               const Text('•', style: TextStyle(color: Colors.grey)),
@@ -270,15 +370,28 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(20)),
+              decoration: BoxDecoration(
+                color: badgeColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (status == 'Hadir') ...[
-                    const CircleAvatar(radius: 3, backgroundColor: Color(0xFF2E7D32)),
+                    const CircleAvatar(
+                      radius: 3,
+                      backgroundColor: Color(0xFF2E7D32),
+                    ),
                     const SizedBox(width: 4),
                   ],
-                  Text(status, style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  Text(
+                    status,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
