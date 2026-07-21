@@ -22,6 +22,10 @@ class _AbsenScreenState extends State<AbsenScreen> {
   double _officeRadius = 50.0;
   String _officeName = 'Kantor';
 
+  // 🟢 Jam hadir & toleransi keterlambatan (diambil dari pengaturan kantor)
+  String _jamMasuk = '08:00';
+  int _toleransiMenit = 15;
+
   LatLng? _currentLocation;
   bool _isLoadingLocation = true;
   String? _errorMessage;
@@ -46,12 +50,29 @@ class _AbsenScreenState extends State<AbsenScreen> {
         _officeLocation = LatLng(office.latitude, office.longitude);
         _officeRadius = office.radius;
         _officeName = office.nama;
+        _jamMasuk = (office.jamMasuk != null && office.jamMasuk!.contains(':'))
+            ? office.jamMasuk!
+            : _jamMasuk;
+        _toleransiMenit = office.toleransi ?? _toleransiMenit;
       });
       if (!_initializedMapCenter) {
         _mapController.move(_officeLocation, 16);
       }
     }
   }
+
+  // 🟢 Batas waktu absen (jam hadir + toleransi) untuk hari ini
+  DateTime get _batasWaktuHadir {
+    final now = DateTime.now();
+    final parts = _jamMasuk.split(':');
+    final hour = int.tryParse(parts[0]) ?? 8;
+    final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+    final jamMasukToday = DateTime(now.year, now.month, now.day, hour, minute);
+    return jamMasukToday.add(Duration(minutes: _toleransiMenit));
+  }
+
+  // 🟢 True jika absen dilakukan melewati batas jam hadir + toleransi
+  bool get _isTerlambat => DateTime.now().isAfter(_batasWaktuHadir);
 
   double get _distance {
     if (_currentLocation == null) return double.infinity;
@@ -148,13 +169,17 @@ class _AbsenScreenState extends State<AbsenScreen> {
         throw Exception('User tidak ditemukan. Pastikan Anda sudah login.');
       }
 
+      // 🟢 Tentukan status berdasarkan jam hadir + toleransi kantor
+      final bool terlambat = _isTerlambat;
+      final String statusAbsen = terlambat ? 'Terlambat' : 'Hadir';
+
       // Pastikan string 'statusHariIni' identik persis dengan yang ada di Firestore
       await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'statusHariIni': 'Hadir', // Merubah field statusHariIni di luar array
+        'statusHariIni': statusAbsen, // Merubah field statusHariIni di luar array
         'riwayatAbsensi': FieldValue.arrayUnion([
           {
             'waktu': Timestamp.now(),
-            'statusHariIni': 'Hadir', // Memasukkan status kehadiran ke dalam array riwayat
+            'statusHariIni': statusAbsen, // Memasukkan status kehadiran ke dalam array riwayat
             'lokasi': '${_currentLocation!.latitude}, ${_currentLocation!.longitude}',
           }
         ])
@@ -163,8 +188,12 @@ class _AbsenScreenState extends State<AbsenScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Absen masuk berhasil di posisi $_officeName!'),
-          backgroundColor: Colors.green,
+          content: Text(
+            terlambat
+                ? 'Absen masuk berhasil, tapi kamu Terlambat (batas ${_jamMasuk}, toleransi $_toleransiMenit menit).'
+                : 'Absen masuk berhasil di posisi $_officeName!',
+          ),
+          backgroundColor: terlambat ? Colors.orange.shade700 : Colors.green,
         ),
       );
       _handleBackOrCancel();
@@ -354,6 +383,53 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                         const SizedBox(height: 12),
+
+                        // 🟢 Info jam hadir & status keterlambatan real-time
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: _isTerlambat ? Colors.orange.shade50 : Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _isTerlambat ? Colors.orange.shade200 : Colors.blue.shade200,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.schedule,
+                                size: 20,
+                                color: _isTerlambat ? Colors.orange.shade800 : Colors.blue.shade800,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Jam Hadir: $_jamMasuk (toleransi $_toleransiMenit menit)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _isTerlambat ? Colors.orange.shade800 : Colors.blue.shade800,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isTerlambat
+                                          ? 'Sekarang sudah melewati batas absen \u2014 akan tercatat Terlambat.'
+                                          : 'Absen sekarang akan tercatat tepat waktu (Hadir).',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: _isTerlambat ? Colors.orange.shade700 : Colors.blue.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                         if (_errorMessage != null)
                           Row(

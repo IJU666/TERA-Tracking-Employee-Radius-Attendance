@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/attendance_model.dart';
 import '../models/check_point_model.dart';
 import '../repositories/attendance_repository.dart';
+import '../repositories/office_repository.dart';
 
 enum AttendanceHistoryFilter { today, thisWeek, thisMonth }
 
@@ -11,6 +12,29 @@ class AttendanceProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
   final AttendanceRepository _repository = AttendanceRepository();
+  final OfficeRepository _officeRepository = OfficeRepository();
+
+  // 🟢 Tentukan status hadir/terlambat berdasarkan jam hadir + toleransi kantor
+  Future<String> _resolveCheckInStatus(DateTime now) async {
+    try {
+      final office = await _officeRepository.getOffice();
+      final jamMasuk = (office?.jamMasuk != null && office!.jamMasuk!.contains(':'))
+          ? office.jamMasuk!
+          : '08:00';
+      final toleransi = office?.toleransi ?? 15;
+
+      final parts = jamMasuk.split(':');
+      final hour = int.tryParse(parts[0]) ?? 8;
+      final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+      final batas = DateTime(now.year, now.month, now.day, hour, minute)
+          .add(Duration(minutes: toleransi));
+
+      return now.isAfter(batas) ? 'terlambat' : 'hadir';
+    } catch (e) {
+      debugPrint('Gagal mengambil jam hadir kantor, pakai default 09:00: $e');
+      return now.hour >= 9 ? 'terlambat' : 'hadir';
+    }
+  }
 
   AttendanceModel? _todayAttendance;
   AttendanceModel? get todayAttendance => _todayAttendance;
@@ -206,7 +230,7 @@ class AttendanceProvider extends ChangeNotifier {
 
       final now = DateTime.now();
       final photoUrl = await _uploadPhoto(imagePath);
-      final status = now.hour >= 9 ? 'terlambat' : 'hadir';
+      final status = await _resolveCheckInStatus(now);
 
       final attendance = AttendanceModel(
         id: '',
