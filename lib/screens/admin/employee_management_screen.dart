@@ -292,6 +292,124 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
     );
   }
 
+  void _navigateToEditForm(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> data,
+  ) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        opaque: false,
+        pageBuilder: (context, _, __) =>
+            EmployeeFormScreen(docId: docId, existingData: data),
+        transitionsBuilder: (context, animation, _, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(
+    BuildContext context,
+    String docId,
+    String nama,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        bool isDeleting = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text('Hapus Akun Karyawan?'),
+              content: Text(
+                'Apakah Anda yakin ingin menghapus data dari $nama? Tindakan ini tidak dapat dibatalkan.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Batal',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          setDialogState(() => isDeleting = true);
+                          try {
+                            // 🔥 Hapus dari collection 'users' (collection yang benar-benar
+                            // dipakai untuk data karyawan), bukan 'karyawan'.
+                            await FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(docId)
+                                .delete();
+                            if (dialogContext.mounted)
+                              Navigator.pop(dialogContext);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Akun karyawan berhasil dihapus.',
+                                  ),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (dialogContext.mounted)
+                              Navigator.pop(dialogContext);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Gagal menghapus data: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Hapus',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildKaryawanCard(
     BuildContext context,
     String docId,
@@ -396,7 +514,49 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.grey, size: 20),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  _navigateToEditForm(context, docId, data);
+                } else if (value == 'delete') {
+                  _showDeleteConfirmation(
+                    context,
+                    docId,
+                    data['nama'] ?? 'Karyawan',
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.edit_outlined,
+                        color: Color(0xFF0D47A1),
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Text('Edit Karyawan'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Hapus Karyawan',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

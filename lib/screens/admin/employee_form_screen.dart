@@ -3,7 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // WAJIB TAMBAHKAN IMPORT INI
 
 class EmployeeFormScreen extends StatefulWidget {
-  const EmployeeFormScreen({super.key});
+  // 🔥 Kalau docId & existingData diisi -> mode EDIT (update data yang sudah ada).
+  // Kalau null -> mode TAMBAH (buat akun baru, seperti sebelumnya).
+  final String? docId;
+  final Map<String, dynamic>? existingData;
+
+  const EmployeeFormScreen({super.key, this.docId, this.existingData});
+
+  bool get isEditMode => docId != null;
 
   @override
   State<EmployeeFormScreen> createState() => _EmployeeFormScreenState();
@@ -11,17 +18,38 @@ class EmployeeFormScreen extends StatefulWidget {
 
 class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  final TextEditingController _namaController = TextEditingController();
-  final TextEditingController _nikController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _divisiController = TextEditingController();
-  final TextEditingController _jabatanController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController(text: 'GeoAbsen2024');
 
-  String _selectedRole = 'Karyawan';
+  late final TextEditingController _namaController;
+  late final TextEditingController _nikController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _divisiController;
+  late final TextEditingController _jabatanController;
+  final TextEditingController _passwordController = TextEditingController(
+    text: 'GeoAbsen2024',
+  );
+
+  late String _selectedRole;
   bool _isPasswordObscured = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final data = widget.existingData;
+    _namaController = TextEditingController(text: data?['nama'] ?? '');
+    _nikController = TextEditingController(text: data?['nik'] ?? '');
+    _emailController = TextEditingController(text: data?['email'] ?? '');
+    _divisiController = TextEditingController(text: data?['divisi'] ?? '');
+    _jabatanController = TextEditingController(text: data?['jabatan'] ?? '');
+
+    // Samakan casing dengan opsi dropdown ('Karyawan'/'Admin'/'Manager')
+    final rawRole = (data?['role'] ?? 'Karyawan').toString();
+    const roleOptions = ['Karyawan', 'Admin', 'Manager'];
+    _selectedRole = roleOptions.firstWhere(
+      (r) => r.toLowerCase() == rawRole.toLowerCase(),
+      orElse: () => 'Karyawan',
+    );
+  }
 
   @override
   void dispose() {
@@ -34,7 +62,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     super.dispose();
   }
 
-  // FUNGSI UNTUK MENYIMPAN DATA KE AUTH DAN FIRESTORE 'users'
+  // FUNGSI UNTUK MENYIMPAN DATA KE AUTH DAN FIRESTORE 'users' (MODE TAMBAH)
   Future<void> _simpanKaryawan() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -42,39 +70,41 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
     try {
       // 1. Buat akun di Firebase Authentication agar user bisa login
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       // 2. Simpan data detail ke collection 'users' menggunakan UID dari Auth
       // agar sinkron antara akun login dan data profil
-      await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-        'nama': _namaController.text.trim(),
-        'nik': _nikController.text.trim(),
-        'email': _emailController.text.trim(),
-        'divisi': _divisiController.text.trim(),
-        'jabatan': _jabatanController.text.trim(),
-        'role': _selectedRole.toLowerCase(), 
-        'statusHariIni': 'Tidak Hadir',
-        'avatarUrl': 'https://via.placeholder.com/150',
-        'createdAt': FieldValue.serverTimestamp(),
-        // ---------- TAMBAHAN DEFAULT CUTI MULAI DI SINI ----------
-        'sisa_cuti': 14,
-        'total_cuti': 14,
-        // ---------- TAMBAHAN DEFAULT CUTI SELESAI DI SINI ----------
-        'ringkasanBulanan': {
-          'hadir': 0,
-          'telat': 0,
-          'izin': 0,
-        },
-        'riwayatAbsensi': [],
-      });
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userCredential.user!.uid)
+          .set({
+            'nama': _namaController.text.trim(),
+            'nik': _nikController.text.trim(),
+            'email': _emailController.text.trim(),
+            'divisi': _divisiController.text.trim(),
+            'jabatan': _jabatanController.text.trim(),
+            'role': _selectedRole.toLowerCase(),
+            'statusHariIni': 'Tidak Hadir',
+            'avatarUrl': 'https://via.placeholder.com/150',
+            'createdAt': FieldValue.serverTimestamp(),
+            // ---------- TAMBAHAN DEFAULT CUTI MULAI DI SINI ----------
+            'sisa_cuti': 14,
+            'total_cuti': 14,
+            // ---------- TAMBAHAN DEFAULT CUTI SELESAI DI SINI ----------
+            'ringkasanBulanan': {'hadir': 0, 'telat': 0, 'izin': 0},
+            'riwayatAbsensi': [],
+          });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Akun berhasil dibuat dan disimpan ke database users!'), 
+            content: Text(
+              'Akun berhasil dibuat dan disimpan ke database users!',
+            ),
             backgroundColor: Colors.green,
           ),
         );
@@ -89,7 +119,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         } else if (e.code == 'weak-password') {
           errorMsg = 'Password terlalu lemah.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMsg), backgroundColor: Colors.red),
         );
@@ -98,7 +128,55 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       // Menangkap error umum lainnya
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan data: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Gagal menyimpan data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // FUNGSI UNTUK UPDATE DATA KARYAWAN YANG SUDAH ADA (MODE EDIT)
+  // 🔥 Catatan: email & password TIDAK diubah di sini karena mengubah email/password
+  // akun Firebase Auth milik user lain butuh Firebase Admin SDK (Cloud Function),
+  // tidak bisa dilakukan langsung dari sisi client demi keamanan. Yang diupdate
+  // hanya data profil di Firestore.
+  Future<void> _updateKaryawan() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.docId)
+          .update({
+            'nama': _namaController.text.trim(),
+            'nik': _nikController.text.trim(),
+            'divisi': _divisiController.text.trim(),
+            'jabatan': _jabatanController.text.trim(),
+            'role': _selectedRole.toLowerCase(),
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data karyawan berhasil diperbarui!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memperbarui data: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -137,20 +215,27 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                       width: 40,
                       height: 4,
                       margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Tambah Karyawan', 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1)),
+                      Text(
+                        widget.isEditMode ? 'Edit Karyawan' : 'Tambah Karyawan',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0D47A1),
+                        ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close, color: Colors.grey),
                         onPressed: () => Navigator.pop(context),
-                      )
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -160,59 +245,157 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildSectionTitle('IDENTITAS DIRI'),
-                          _buildTextField('Nama Lengkap', 'Masukkan nama lengkap', _namaController),
-                          _buildTextField('Nomor Induk Karyawan (NIK)', 'Contoh: 2023001', _nikController, isNumeric: true),
-                          _buildTextField('Email Perusahaan', 'karyawan@perusahaan.com', _emailController, isEmail: true),
+                          _buildTextField(
+                            'Nama Lengkap',
+                            'Masukkan nama lengkap',
+                            _namaController,
+                          ),
+                          _buildTextField(
+                            'Nomor Induk Karyawan (NIK)',
+                            'Contoh: 2023001',
+                            _nikController,
+                            isNumeric: true,
+                          ),
+                          _buildTextField(
+                            'Email Perusahaan',
+                            'karyawan@perusahaan.com',
+                            _emailController,
+                            isEmail: true,
+                            enabled: !widget.isEditMode,
+                          ),
+                          if (widget.isEditMode)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Text(
+                                'Email tidak bisa diubah dari sini karena terhubung ke akun login. Hubungi admin sistem jika perlu diganti.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ),
 
                           _buildSectionTitle('PENEMPATAN'),
                           Row(
                             children: [
-                              Expanded(child: _buildTextField('Divisi', 'Sales / IT', _divisiController)),
+                              Expanded(
+                                child: _buildTextField(
+                                  'Divisi',
+                                  'Sales / IT',
+                                  _divisiController,
+                                ),
+                              ),
                               const SizedBox(width: 12),
-                              Expanded(child: _buildTextField('Jabatan', 'Manager', _jabatanController)),
+                              Expanded(
+                                child: _buildTextField(
+                                  'Jabatan',
+                                  'Manager',
+                                  _jabatanController,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          const Text('Role Akses', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                          const Text(
+                            'Role Akses',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0D47A1),
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
                             value: _selectedRole,
                             decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.grey[300]!,
+                                ),
+                              ),
                             ),
                             items: ['Karyawan', 'Admin', 'Manager'].map((role) {
-                              return DropdownMenuItem(value: role, child: Text(role));
+                              return DropdownMenuItem(
+                                value: role,
+                                child: Text(role),
+                              );
                             }).toList(),
                             onChanged: (val) {
-                              if (val != null) setState(() => _selectedRole = val);
+                              if (val != null)
+                                setState(() => _selectedRole = val);
                             },
                           ),
                           const SizedBox(height: 16),
 
-                          _buildSectionTitle('KEAMANAN'),
-                          const Text('Password Sementara', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-                          const SizedBox(height: 6),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: _isPasswordObscured,
-                            decoration: InputDecoration(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-                              suffixIcon: IconButton(
-                                icon: Icon(_isPasswordObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                                onPressed: () => setState(() => _isPasswordObscured = !_isPasswordObscured),
+                          if (!widget.isEditMode) ...[
+                            _buildSectionTitle('KEAMANAN'),
+                            const Text(
+                              'Password Sementara',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0D47A1),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Karyawan akan diminta mengubah password saat login pertama kali.',
-                            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey[600]),
-                          ),
-                          const SizedBox(height: 24),
+                            const SizedBox(height: 6),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _isPasswordObscured,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey[300]!,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey[300]!,
+                                  ),
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _isPasswordObscured
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Colors.grey,
+                                  ),
+                                  onPressed: () => setState(
+                                    () => _isPasswordObscured =
+                                        !_isPasswordObscured,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Karyawan akan diminta mengubah password saat login pertama kali.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ] else
+                            const SizedBox(height: 12),
 
                           SizedBox(
                             width: double.infinity,
@@ -220,14 +403,39 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF1976D2),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 elevation: 0,
                               ),
-                              onPressed: _isLoading ? null : _simpanKaryawan,
-                              icon: _isLoading 
-                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                  : const Icon(Icons.save_alt, color: Colors.white),
-                              label: const Text('Simpan Akun', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              onPressed: _isLoading
+                                  ? null
+                                  : (widget.isEditMode
+                                        ? _updateKaryawan
+                                        : _simpanKaryawan),
+                              icon: _isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.save_alt,
+                                      color: Colors.white,
+                                    ),
+                              label: Text(
+                                widget.isEditMode
+                                    ? 'Simpan Perubahan'
+                                    : 'Simpan Akun',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -246,31 +454,75 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
-      child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1976D2), letterSpacing: 0.5)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF1976D2),
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 
-  Widget _buildTextField(String label, String hint, TextEditingController controller, {bool isNumeric = false, bool isEmail = false}) {
+  Widget _buildTextField(
+    String label,
+    String hint,
+    TextEditingController controller, {
+    bool isNumeric = false,
+    bool isEmail = false,
+    bool enabled = true,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0D47A1),
+            ),
+          ),
           const SizedBox(height: 6),
           TextFormField(
             controller: controller,
-            keyboardType: isNumeric ? TextInputType.number : (isEmail ? TextInputType.emailAddress : TextInputType.text),
+            enabled: enabled,
+            keyboardType: isNumeric
+                ? TextInputType.number
+                : (isEmail ? TextInputType.emailAddress : TextInputType.text),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey[300]!)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[300]!),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey[200]!),
+              ),
+              fillColor: enabled ? null : Colors.grey[100],
+              filled: !enabled,
             ),
             validator: (value) {
-              if (value == null || value.trim().isEmpty) return '$label wajib diisi';
-              if (isEmail && !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) return 'Format email salah';
+              if (!enabled) return null;
+              if (value == null || value.trim().isEmpty)
+                return '$label wajib diisi';
+              if (isEmail &&
+                  !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value))
+                return 'Format email salah';
               return null;
             },
           ),
