@@ -2,8 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/attendance_model.dart';
 
 class AttendanceRepository {
-  final CollectionReference _userRef =
-      FirebaseFirestore.instance.collection('users');
+  final CollectionReference _userRef = FirebaseFirestore.instance.collection(
+    'users',
+  );
 
   Future<List<AttendanceModel>> _getRiwayatFromArray(String uid) async {
     try {
@@ -12,15 +13,15 @@ class AttendanceRepository {
 
       final userData = doc.data() as Map<String, dynamic>;
       final String namaUser = userData['nama'] ?? 'Karyawan';
-      
+
       final List<dynamic>? riwayatRaw = userData['riwayatAbsensi'];
       if (riwayatRaw == null || riwayatRaw.isEmpty) return [];
 
       return riwayatRaw.map((item) {
         final map = item as Map<String, dynamic>;
-        
-        final Timestamp timestamp = map['waktu'] is Timestamp 
-            ? map['waktu'] as Timestamp 
+
+        final Timestamp timestamp = map['waktu'] is Timestamp
+            ? map['waktu'] as Timestamp
             : Timestamp.now();
         final DateTime dateTimeValue = timestamp.toDate();
 
@@ -33,9 +34,9 @@ class AttendanceRepository {
           'date': dateTimeValue.toIso8601String(),
           'status': (map['statusHariIni'] ?? 'absen').toString().toLowerCase(),
           'officeName': userData['divisi'] ?? 'Kantor Pusat',
-          'checkIn': dateTimeValue.toIso8601String(), 
-          'checkOut': checkOutTimestamp != null 
-              ? checkOutTimestamp.toDate().toIso8601String() 
+          'checkIn': dateTimeValue.toIso8601String(),
+          'checkOut': checkOutTimestamp != null
+              ? checkOutTimestamp.toDate().toIso8601String()
               : null, // Mapped dari DB lo
         };
 
@@ -48,12 +49,13 @@ class AttendanceRepository {
   }
 
   // 🔥 AMBIL DATA CUTI/IZIN YANG DI-ACC MANAGER UNTUK CARD "ABSEN"
+  // FIX: status yang ditulis saat approve adalah 'Disetujui', bukan 'Setujui'.
   Future<int> getApprovedCutiIzinCount(String uid) async {
     try {
       final snapshot = await _userRef
           .doc(uid)
           .collection('cuti_izin')
-          .where('status', isEqualTo: 'Setujui')
+          .where('status', isEqualTo: 'Disetujui')
           .get();
       return snapshot.docs.length;
     } catch (e) {
@@ -62,29 +64,65 @@ class AttendanceRepository {
     }
   }
 
+  // Sama seperti di atas, tapi dibatasi ke rentang tanggal tertentu
+  // (dipakai untuk ringkasan bulanan per-bulan di halaman detail karyawan).
+  Future<int> getApprovedCutiIzinCountInRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
+    try {
+      final snapshot = await _userRef
+          .doc(uid)
+          .collection('cuti_izin')
+          .where('status', isEqualTo: 'Disetujui')
+          .get();
+
+      return snapshot.docs.where((doc) {
+        final data = doc.data();
+        final tsStart = data['date_start'];
+        if (tsStart is! Timestamp) return false;
+        final date = tsStart.toDate();
+        return !date.isBefore(start) && !date.isAfter(end);
+      }).length;
+    } catch (e) {
+      print('Error get cuti_izin range: $e');
+      return 0;
+    }
+  }
+
   Future<AttendanceModel?> getByDate(String uid, DateTime date) async {
     final list = await _getRiwayatFromArray(uid);
     try {
-      return list.firstWhere((a) =>
-          a.date.year == date.year &&
-          a.date.month == date.month &&
-          a.date.day == date.day);
+      return list.firstWhere(
+        (a) =>
+            a.date.year == date.year &&
+            a.date.month == date.month &&
+            a.date.day == date.day,
+      );
     } catch (_) {
       return null;
     }
   }
 
-  Future<List<AttendanceModel>> getRecentByUid(String uid, {int limit = 10}) async {
+  Future<List<AttendanceModel>> getRecentByUid(
+    String uid, {
+    int limit = 10,
+  }) async {
     final list = await _getRiwayatFromArray(uid);
     list.sort((a, b) => b.date.compareTo(a.date));
     return list.take(limit).toList();
   }
 
-  Future<List<AttendanceModel>> getByRange(String uid, DateTime start, DateTime end) async {
+  Future<List<AttendanceModel>> getByRange(
+    String uid,
+    DateTime start,
+    DateTime end,
+  ) async {
     final list = await _getRiwayatFromArray(uid);
     final filtered = list.where((a) {
       return a.date.isAfter(start.subtract(const Duration(seconds: 1))) &&
-             a.date.isBefore(end.add(const Duration(seconds: 1)));
+          a.date.isBefore(end.add(const Duration(seconds: 1)));
     }).toList();
     filtered.sort((a, b) => b.date.compareTo(a.date));
     return filtered;
@@ -97,15 +135,15 @@ class AttendanceRepository {
     final rawData = {
       'statusHariIni': statusLabel,
       'waktu': Timestamp.fromDate(attendance.date),
-      'lokasi': attendance.checkInLocation != null 
+      'lokasi': attendance.checkInLocation != null
           ? '${attendance.checkInLocation!.lat}, ${attendance.checkInLocation!.lng}'
           : '',
-      'waktuCheckOut': null, 
+      'waktuCheckOut': null,
     };
     await _userRef.doc(attendance.uid).update({
       // 🟢 Field status utama di dokumen user juga ikut disinkronkan
       'statusHariIni': statusLabel,
-      'riwayatAbsensi': FieldValue.arrayUnion([rawData])
+      'riwayatAbsensi': FieldValue.arrayUnion([rawData]),
     });
   }
 
@@ -125,16 +163,16 @@ class AttendanceRepository {
 
     if (riwayat.isNotEmpty) {
       Map<String, dynamic> lastRecord = Map<String, dynamic>.from(riwayat.last);
-      
+
       // Ambil jam masuk awal untuk pembanding
       final Timestamp checkInTimestamp = lastRecord['waktu'];
       final DateTime checkInTime = checkInTimestamp.toDate();
-      
+
       // Kalkulasi selisih waktu kerja
       final duration = checkOutTime.difference(checkInTime);
-      
+
       lastRecord['waktuCheckOut'] = Timestamp.fromDate(checkOutTime);
-      
+
       // Jika durasi kerja lebih dari atau sama dengan 7 jam, status jadi Lembur.
       // Selain itu, PERTAHANKAN status asli hasil check-in (Hadir/Terlambat) --
       // jangan ditimpa jadi 'Hadir' begitu saja, supaya yang absen Terlambat
@@ -143,7 +181,7 @@ class AttendanceRepository {
         lastRecord['statusHariIni'] = 'Lembur';
       }
       // else: biarkan lastRecord['statusHariIni'] sesuai nilai saat check-in.
-      
+
       riwayat[riwayat.length - 1] = lastRecord;
 
       final updateData = <String, dynamic>{'riwayatAbsensi': riwayat};

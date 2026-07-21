@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../../core/utils/date_formatter.dart';
+import '../../models/attendance_model.dart';
+import '../../repositories/attendance_repository.dart';
+
 class EmployeeDetailScreen extends StatefulWidget {
   final String docId;
   final Map<String, dynamic> karyawanData;
@@ -17,6 +21,15 @@ class EmployeeDetailScreen extends StatefulWidget {
 
 class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   bool _isDeleting = false;
+
+  // 🔥 Sumber data absensi asli (Firestore), menggantikan field statis
+  // 'ringkasanBulanan' & 'riwayatAbsensi' yang gak pernah benar-benar ada.
+  final AttendanceRepository _attendanceRepo = AttendanceRepository();
+  bool _isLoadingRiwayat = true;
+  List<AttendanceModel> _riwayat = [];
+  int _hadir = 0;
+  int _telat = 0;
+  int _izin = 0;
 
   // Variabel untuk mengelola Dropdown Bulan
   String _selectedMonth = '';
@@ -41,6 +54,55 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   void initState() {
     super.initState();
     _generateMonths();
+    _loadDataForMonth(_selectedMonth);
+  }
+
+  // 🔥 Ubah label dropdown ("Juli 2026") jadi rentang tanggal 1 bulan penuh
+  DateTime _monthLabelToDate(String label) {
+    final parts = label.split(' ');
+    final monthIndex = _namaBulan.indexOf(parts[0]) + 1;
+    final year =
+        int.tryParse(parts.length > 1 ? parts[1] : '') ?? DateTime.now().year;
+    return DateTime(year, monthIndex <= 0 ? 1 : monthIndex, 1);
+  }
+
+  Future<void> _loadDataForMonth(String monthLabel) async {
+    setState(() => _isLoadingRiwayat = true);
+    try {
+      final monthStart = _monthLabelToDate(monthLabel);
+      final start = DateTime(monthStart.year, monthStart.month, 1);
+      final end = DateTime(
+        monthStart.year,
+        monthStart.month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
+      final riwayat = await _attendanceRepo.getByRange(
+        widget.docId,
+        start,
+        end,
+      );
+      final izinCount = await _attendanceRepo.getApprovedCutiIzinCountInRange(
+        widget.docId,
+        start,
+        end,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _riwayat = riwayat;
+        _hadir = riwayat.where((a) => a.status == 'hadir').length;
+        _telat = riwayat.where((a) => a.status == 'terlambat').length;
+        _izin = izinCount;
+        _isLoadingRiwayat = false;
+      });
+    } catch (e) {
+      debugPrint('Gagal memuat riwayat absensi karyawan: $e');
+      if (mounted) setState(() => _isLoadingRiwayat = false);
+    }
   }
 
   // Fungsi untuk menghasilkan daftar bulan (misal: 6 bulan terakhir dari hari ini)
@@ -136,16 +198,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Catatan: Di aplikasi nyata, Anda dapat memfilter `ringkasanRaw` dan `riwayat`
-    // di bawah ini berdasarkan nilai variabel `_selectedMonth`.
-    final ringkasanRaw = widget.karyawanData['ringkasanBulanan'];
-    Map<String, dynamic> ringkasan = {'hadir': 0, 'telat': 0, 'izin': 0};
-    if (ringkasanRaw is Map) {
-      ringkasan = Map<String, dynamic>.from(ringkasanRaw);
-    }
-
-    List riwayat = widget.karyawanData['riwayatAbsensi'] ?? [];
-
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -307,12 +359,10 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                             isDense: true,
                             alignment: Alignment.center,
                             onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  _selectedMonth = newValue;
-                                  // TODO (Opsional): Sinkronisasikan pengambilan data dari database
-                                  // berdasarkan nilai bulan ini jika datanya dipisah per bulan.
-                                });
+                              if (newValue != null &&
+                                  newValue != _selectedMonth) {
+                                setState(() => _selectedMonth = newValue);
+                                _loadDataForMonth(newValue);
                               }
                             },
                             items: _availableMonths
@@ -333,7 +383,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     children: [
                       Expanded(
                         child: _buildMonthlyStatCard(
-                          (ringkasan['hadir'] ?? 0).toString(),
+                          _hadir.toString(),
                           'Hadir',
                           const Color(0xFFE8F5E9),
                           const Color(0xFF2E7D32),
@@ -342,7 +392,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildMonthlyStatCard(
-                          (ringkasan['telat'] ?? 0).toString(),
+                          _telat.toString(),
                           'Telat',
                           const Color(0xFFFFEBEE),
                           const Color(0xFFC62828),
@@ -351,7 +401,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildMonthlyStatCard(
-                          (ringkasan['izin'] ?? 0).toString(),
+                          _izin.toString(),
                           'Izin',
                           const Color(0xFFEEEEEE),
                           Colors.black54,
@@ -379,12 +429,19 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (riwayat.isEmpty)
+                  if (_isLoadingRiwayat)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_riwayat.isEmpty)
                     const Center(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Text(
-                          'Tidak ada riwayat absensi.',
+                          'Tidak ada riwayat absensi di bulan ini.',
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
@@ -393,13 +450,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: riwayat.length,
+                      itemCount: _riwayat.length,
                       itemBuilder: (context, idx) {
-                        final item = riwayat[idx];
-                        if (item is Map<String, dynamic>) {
-                          return _buildRiwayatCard(item);
-                        }
-                        return const SizedBox.shrink();
+                        return _buildRiwayatCard(_riwayat[idx]);
                       },
                     ),
                 ],
@@ -436,15 +489,17 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     );
   }
 
-  Widget _buildRiwayatCard(Map<String, dynamic> item) {
-    String status = item['status'] ?? 'Hadir';
+  Widget _buildRiwayatCard(AttendanceModel item) {
+    // item.status disimpan lowercase ('hadir'/'terlambat'/'izin'/'cuti'/
+    // 'lembur'/'absen'); statusLabel mengubahnya ke label tampilan.
+    final String status = item.statusLabel;
     Color badgeColor = const Color(0xFFE8F5E9);
     Color textColor = const Color(0xFF2E7D32);
 
     if (status == 'Terlambat') {
       badgeColor = const Color(0xFFFFEBEE);
       textColor = const Color(0xFFC62828);
-    } else if (status == 'Izin') {
+    } else if (status == 'Izin' || status == 'Cuti') {
       badgeColor = const Color(0xFFEEEEEE);
       textColor = Colors.black54;
     }
@@ -466,14 +521,14 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    item['hari'] ?? '',
+                    DateFormatter.formatDayName(item.date),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
                   ),
                   Text(
-                    item['tipeHari'] ?? '',
+                    DateFormatter.formatDate(item.date),
                     style: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ],
@@ -499,14 +554,16 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          if (status != 'Izin') ...[
+          if (status != 'Izin' && status != 'Cuti') ...[
             Row(
               children: [
                 Expanded(
                   child: _buildTimeBox(
                     Icons.login_rounded,
                     'Check-in',
-                    item['checkIn'] ?? '--:--',
+                    item.checkIn != null
+                        ? DateFormatter.formatTime(item.checkIn!)
+                        : '--:--',
                     const Color(0xFFE3F2FD),
                   ),
                 ),
@@ -515,7 +572,9 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                   child: _buildTimeBox(
                     Icons.logout_rounded,
                     'Check-out',
-                    item['checkOut'] ?? '--:--',
+                    item.checkOut != null
+                        ? DateFormatter.formatTime(item.checkOut!)
+                        : '--:--',
                     const Color(0xFFEEEEEE),
                   ),
                 ),
@@ -524,7 +583,17 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
             const SizedBox(height: 12),
             Center(
               child: TextButton.icon(
-                onPressed: () {},
+                onPressed: () {
+                  // Catatan: lokasi mentah tersimpan sebagai string "lat,
+                  // lng" di field 'lokasi' pada dokumen Firestore, belum
+                  // dipetakan ke peta di sini — di luar cakupan perbaikan
+                  // saat ini (ringkasan bulanan & riwayat absensi).
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Fitur lihat lokasi segera hadir'),
+                    ),
+                  );
+                },
                 icon: const Icon(
                   Icons.location_on_outlined,
                   size: 16,
@@ -543,7 +612,7 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
             ),
           ] else ...[
             Text(
-              '"${item['catatan'] ?? ''}"',
+              '"${item.leaveNote ?? '-'}"',
               style: const TextStyle(
                 fontStyle: FontStyle.italic,
                 color: Colors.black54,
