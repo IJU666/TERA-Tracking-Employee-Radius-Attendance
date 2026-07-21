@@ -3,10 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';   
 import '../../core/routes/app_routes.dart'; 
 import '../../providers/office_provider.dart'; 
+import '../../providers/attendance_provider.dart';
 
 class AbsenScreen extends StatefulWidget {
   const AbsenScreen({Key? key}) : super(key: key);
@@ -157,6 +157,11 @@ class _AbsenScreenState extends State<AbsenScreen> {
   // --- FUNGSI UPDATE DATABASE ---
   Future<void> _submitAttendance() async {
     if (_isSubmitting) return; 
+    final attendanceProvider = context.read<AttendanceProvider>();
+    if (attendanceProvider.isAlreadyCheckIn) return;
+    // 🟢 Cegah absen kedua kalinya di hari yang sama walau isAlreadyCheckIn
+    // sudah balik jadi false setelah checkout (lihat hasCompletedToday).
+    if (attendanceProvider.hasCompletedToday) return;
     
     setState(() {
       _isSubmitting = true;
@@ -168,35 +173,45 @@ class _AbsenScreenState extends State<AbsenScreen> {
       if (user == null) {
         throw Exception('User tidak ditemukan. Pastikan Anda sudah login.');
       }
+      if (_currentLocation == null) {
+        throw Exception('Lokasi belum tersedia.');
+      }
 
-      // 🟢 Tentukan status berdasarkan jam hadir + toleransi kantor
+      // 🟢 Status (Hadir/Terlambat) dihitung otomatis di dalam provider,
+      // berdasarkan jam hadir + toleransi kantor (lihat _resolveCheckInStatus).
+      // Panggil lewat AttendanceProvider.checkIn() -- BUKAN tulis Firestore
+      // manual -- supaya _todayAttendance ter-update LANGSUNG di memory
+      // begitu absen berhasil, sehingga isAlreadyCheckIn otomatis jadi true
+      // dan HomeScreen langsung mengganti tab ini ke CheckoutScreen.
+      final success = await context.read<AttendanceProvider>().checkIn(
+            _currentLocation!.latitude,
+            _currentLocation!.longitude,
+            '', // belum ada fitur foto
+            officeName: _officeName,
+          );
+
+      if (!success) {
+        throw Exception('Gagal melakukan absen. Coba lagi.');
+      }
+
       final bool terlambat = _isTerlambat;
-      final String statusAbsen = terlambat ? 'Terlambat' : 'Hadir';
-
-      // Pastikan string 'statusHariIni' identik persis dengan yang ada di Firestore
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'statusHariIni': statusAbsen, // Merubah field statusHariIni di luar array
-        'riwayatAbsensi': FieldValue.arrayUnion([
-          {
-            'waktu': Timestamp.now(),
-            'statusHariIni': statusAbsen, // Memasukkan status kehadiran ke dalam array riwayat
-            'lokasi': '${_currentLocation!.latitude}, ${_currentLocation!.longitude}',
-          }
-        ])
-      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             terlambat
-                ? 'Absen masuk berhasil, tapi kamu Terlambat (batas ${_jamMasuk}, toleransi $_toleransiMenit menit).'
-                : 'Absen masuk berhasil di posisi $_officeName!',
+                ? 'Absen masuk berhasil, tapi kamu Terlambat (batas ${_jamMasuk}, toleransi $_toleransiMenit menit). Jangan lupa checkout saat pulang.'
+                : 'Absen masuk berhasil di posisi $_officeName! Jangan lupa checkout saat pulang.',
           ),
           backgroundColor: terlambat ? Colors.orange.shade700 : Colors.green,
         ),
       );
-      _handleBackOrCancel();
+      // 🟢 Sengaja TIDAK memanggil _handleBackOrCancel() di sini.
+      // Layar ini ditampilkan sebagai tab (bukan hasil Navigator.push), jadi
+      // begitu isAlreadyCheckIn true, HomeScreen otomatis merender
+      // CheckoutScreen di posisi tab yang sama -- user langsung diarahkan
+      // ke Checkout, bukan kembali ke tab Absen/Home.
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,7 +232,13 @@ class _AbsenScreenState extends State<AbsenScreen> {
   @override
   Widget build(BuildContext context) {
     final officeLoading = context.watch<OfficeProvider>().isLoading;
-    
+    // 🟢 Jika sudah absen masuk (dan belum checkout), cegah absen ulang.
+    final alreadyCheckedIn = context.watch<AttendanceProvider>().isAlreadyCheckIn;
+    // 🟢 Jika absen masuk + checkout hari ini sudah lengkap, kunci tombol
+    // secara permanen sampai hari berganti (tidak bisa absen kedua kalinya).
+    final hasCompletedToday = context.watch<AttendanceProvider>().hasCompletedToday;
+    final bool isLockedForToday = alreadyCheckedIn || hasCompletedToday;
+
     final distance = _distance;
     final isWithinRadius = _isWithinRadius;
     final hasLocation = _currentLocation != null;
@@ -383,6 +404,30 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                         const SizedBox(height: 12),
+
+                        // 🟢 Jika sudah absen masuk hari ini, tampilkan pengingat checkout
+                        if (alreadyCheckedIn)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Kamu sudah absen masuk hari ini. Buka menu ini lagi saat pulang untuk checkout.',
+                                    style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
 
                         // 🟢 Info jam hadir & status keterlambatan real-time
                         Container(
@@ -566,20 +611,30 @@ class _AbsenScreenState extends State<AbsenScreen> {
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton.icon(
-                            onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation && !_isSubmitting)
+                            onPressed: (hasLocation && isWithinRadius && !_isLoadingLocation && !_isSubmitting && !isLockedForToday)
                                 ? _submitAttendance
                                 : null,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade700,
-                              disabledBackgroundColor: Colors.grey.shade300,
+                              backgroundColor: hasCompletedToday ? Colors.grey.shade400 : Colors.blue.shade700,
+                              disabledBackgroundColor: hasCompletedToday ? Colors.grey.shade400 : Colors.grey.shade300,
+                              disabledForegroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               elevation: 0,
                             ),
                             icon: _isSubmitting 
                                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.fingerprint, color: Colors.white),
+                                : Icon(
+                                    hasCompletedToday
+                                        ? Icons.lock_outline
+                                        : (alreadyCheckedIn ? Icons.check : Icons.fingerprint),
+                                    color: Colors.white,
+                                  ),
                             label: Text(
-                              _isSubmitting ? 'Memproses...' : 'Konfirmasi Absen Masuk',
+                              _isSubmitting
+                                  ? 'Memproses...'
+                                  : (hasCompletedToday
+                                      ? 'Absen Hari Ini Sudah Selesai'
+                                      : (alreadyCheckedIn ? 'Sudah Absen Masuk' : 'Konfirmasi Absen Masuk')),
                               style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                           ),

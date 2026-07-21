@@ -71,6 +71,15 @@ class AttendanceProvider extends ChangeNotifier {
       _todayAttendance!.checkIn != null &&
       _todayAttendance!.checkOut == null;
 
+  // 🔥 Getter untuk cek apakah user sudah menyelesaikan absen masuk DAN
+  // checkout hari ini. Berbeda dengan isAlreadyCheckIn (yang jadi false lagi
+  // setelah checkout), getter ini tetap true sepanjang hari itu supaya
+  // tombol absen tidak bisa ditekan lagi setelah siklus absen selesai.
+  bool get hasCompletedToday =>
+      _todayAttendance != null &&
+      _todayAttendance!.checkIn != null &&
+      _todayAttendance!.checkOut != null;
+
   // 🔥 Mengikuti alur status yang lebih dinamis setelah check-out
   String get todayStatusLabel {
     if (_todayAttendance == null || _todayAttendance!.checkIn == null) {
@@ -215,7 +224,7 @@ class AttendanceProvider extends ChangeNotifier {
     return imagePath;
   }
 
-  Future<bool> checkIn(double lat, double lng, String imagePath) async {
+  Future<bool> checkIn(double lat, double lng, String imagePath, {String? officeName}) async {
     final uid = _uid;
     if (uid == null) return false;
 
@@ -238,7 +247,7 @@ class AttendanceProvider extends ChangeNotifier {
         nama: FirebaseAuth.instance.currentUser?.displayName ?? '-',
         date: now,
         status: status,
-        officeName: 'Kantor Pusat',
+        officeName: officeName ?? 'Kantor Pusat',
         checkIn: now,
         checkInLocation: CheckPointModel(
           timestamp: now,

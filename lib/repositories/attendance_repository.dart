@@ -91,8 +91,11 @@ class AttendanceRepository {
   }
 
   Future<void> checkIn(AttendanceModel attendance) async {
+    // 🟢 Gunakan status asli hasil kalkulasi (Hadir/Terlambat), jangan hardcode.
+    final String statusLabel = attendance.statusLabel;
+
     final rawData = {
-      'statusHariIni': 'Hadir',
+      'statusHariIni': statusLabel,
       'waktu': Timestamp.fromDate(attendance.date),
       'lokasi': attendance.checkInLocation != null 
           ? '${attendance.checkInLocation!.lat}, ${attendance.checkInLocation!.lng}'
@@ -100,6 +103,8 @@ class AttendanceRepository {
       'waktuCheckOut': null, 
     };
     await _userRef.doc(attendance.uid).update({
+      // 🟢 Field status utama di dokumen user juga ikut disinkronkan
+      'statusHariIni': statusLabel,
       'riwayatAbsensi': FieldValue.arrayUnion([rawData])
     });
   }
@@ -130,15 +135,24 @@ class AttendanceRepository {
       
       lastRecord['waktuCheckOut'] = Timestamp.fromDate(checkOutTime);
       
-      // Jika durasi kerja lebih dari atau sama dengan 7 jam, status jadi Lembur
+      // Jika durasi kerja lebih dari atau sama dengan 7 jam, status jadi Lembur.
+      // Selain itu, PERTAHANKAN status asli hasil check-in (Hadir/Terlambat) --
+      // jangan ditimpa jadi 'Hadir' begitu saja, supaya yang absen Terlambat
+      // tetap tercatat Terlambat setelah checkout.
       if (duration.inHours >= 7) {
         lastRecord['statusHariIni'] = 'Lembur';
-      } else {
-        lastRecord['statusHariIni'] = 'Hadir';
       }
+      // else: biarkan lastRecord['statusHariIni'] sesuai nilai saat check-in.
       
       riwayat[riwayat.length - 1] = lastRecord;
-      await _userRef.doc(uid).update({'riwayatAbsensi': riwayat});
+
+      final updateData = <String, dynamic>{'riwayatAbsensi': riwayat};
+      // 🟢 Samakan juga field statusHariIni di level dokumen user (dipakai
+      // admin dashboard) kalau statusnya berubah jadi Lembur saat checkout.
+      if (duration.inHours >= 7) {
+        updateData['statusHariIni'] = 'Lembur';
+      }
+      await _userRef.doc(uid).update(updateData);
     }
   }
 }
