@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // 🔥 Import untuk TextInputFormatter (batas digit NIK)
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // WAJIB TAMBAHKAN IMPORT INI
+import 'package:firebase_auth/firebase_auth.dart';
 
 class EmployeeFormScreen extends StatefulWidget {
-  // 🔥 Kalau docId & existingData diisi -> mode EDIT (update data yang sudah ada).
-  // Kalau null -> mode TAMBAH (buat akun baru, seperti sebelumnya).
   final String? docId;
   final Map<String, dynamic>? existingData;
 
@@ -43,7 +40,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _divisiController = TextEditingController(text: data?['divisi'] ?? '');
     _jabatanController = TextEditingController(text: data?['jabatan'] ?? '');
 
-    // Samakan casing dengan opsi dropdown ('Karyawan'/'Admin'/'Manager')
     final rawRole = (data?['role'] ?? 'Karyawan').toString();
     const roleOptions = ['Karyawan', 'Admin', 'Manager'];
     _selectedRole = roleOptions.firstWhere(
@@ -78,7 +74,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           );
 
       // 2. Simpan data detail ke collection 'users' menggunakan UID dari Auth
-      // agar sinkron antara akun login dan data profil
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userCredential.user!.uid)
@@ -92,11 +87,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             'statusHariIni': 'Tidak Hadir',
             'avatarUrl': 'https://via.placeholder.com/150',
             'createdAt': FieldValue.serverTimestamp(),
-            // ---------- TAMBAHAN DEFAULT CUTI MULAI DI SINI ----------
             'sisa_cuti': 14,
             'total_cuti': 14,
-            // ---------- TAMBAHAN DEFAULT CUTI SELESAI DI SINI ----------
-            'ringkasanBulanan': {'hadir': 0, 'telat': 0, 'izin': 0},
+            // 'ringkasanBulanan' sudah dihapus di sini
             'riwayatAbsensi': [],
           });
 
@@ -109,10 +102,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context); // Menutup halaman form setelah sukses
+        Navigator.pop(context);
       }
     } on FirebaseAuthException catch (e) {
-      // Menangkap error khusus dari Firebase Auth (misal: email sudah terdaftar)
       if (mounted) {
         String errorMsg = 'Terjadi kesalahan saat mendaftar.';
         if (e.code == 'email-already-in-use') {
@@ -126,7 +118,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         );
       }
     } catch (e) {
-      // Menangkap error umum lainnya
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -141,10 +132,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }
 
   // FUNGSI UNTUK UPDATE DATA KARYAWAN YANG SUDAH ADA (MODE EDIT)
-  // 🔥 Catatan: email & password TIDAK diubah di sini karena mengubah email/password
-  // akun Firebase Auth milik user lain butuh Firebase Admin SDK (Cloud Function),
-  // tidak bisa dilakukan langsung dari sisi client demi keamanan. Yang diupdate
-  // hanya data profil di Firestore.
   Future<void> _updateKaryawan() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -194,9 +181,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         child: Material(
           color: Colors.transparent,
           child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.9,
-            ),
+            height: MediaQuery.of(context).size.height * 0.9,
             padding: EdgeInsets.only(
               top: 16,
               left: 20,
@@ -242,7 +227,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Flexible(
+                  Expanded(
                     child: SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -255,14 +240,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                           ),
                           _buildTextField(
                             'Nomor Induk Karyawan (NIK)',
-                            'Contoh: 230102049',
+                            'Contoh: 2023001',
                             _nikController,
                             isNumeric: true,
-                            // 🔥 NIK dibatasi maksimal 9 digit angka
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              LengthLimitingTextInputFormatter(9),
-                            ],
                           ),
                           _buildTextField(
                             'Email Perusahaan',
@@ -419,8 +399,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                               onPressed: _isLoading
                                   ? null
                                   : (widget.isEditMode
-                                        ? _updateKaryawan
-                                        : _simpanKaryawan),
+                                      ? _updateKaryawan
+                                      : _simpanKaryawan),
                               icon: _isLoading
                                   ? const SizedBox(
                                       width: 20,
@@ -481,8 +461,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     bool isNumeric = false,
     bool isEmail = false,
     bool enabled = true,
-    List<TextInputFormatter>?
-    inputFormatters, // 🔥 Disalurkan ke TextFormField (mis. batas digit NIK)
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -504,7 +482,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             keyboardType: isNumeric
                 ? TextInputType.number
                 : (isEmail ? TextInputType.emailAddress : TextInputType.text),
-            inputFormatters: inputFormatters,
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
@@ -534,9 +511,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               if (isEmail &&
                   !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value))
                 return 'Format email salah';
-              // 🔥 NIK wajib tepat 9 digit angka
-              if (label.contains('NIK') && value.trim().length != 9)
-                return 'NIK harus 9 digit angka';
               return null;
             },
           ),
