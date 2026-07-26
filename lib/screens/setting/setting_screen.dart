@@ -14,12 +14,6 @@
   class SettingScreen extends StatelessWidget {
     const SettingScreen({super.key});
 
-    void _comingSoon(BuildContext context) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fitur ini segera hadir')),
-      );
-    }
-
     @override
     Widget build(BuildContext context) {
       final user = context.watch<AuthProvider>().currentUser;
@@ -34,12 +28,6 @@
             'Settings',
             style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 18),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.more_vert_rounded, color: Colors.black87),
-              onPressed: () => _comingSoon(context),
-            ),
-          ],
         ),
         body: SafeArea(
           child: ListView(

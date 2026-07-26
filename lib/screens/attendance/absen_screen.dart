@@ -363,7 +363,8 @@ class _AbsenScreenState extends State<AbsenScreen> {
                 Align(
                   alignment: Alignment.bottomCenter,
                   child: Container(
-                    height: MediaQuery.of(context).size.height * 0.52,
+                    // Sedikit menaikkan jatah tinggi container agar lebih presisi di layar HP standar
+                    height: MediaQuery.of(context).size.height * 0.55,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                     decoration: const BoxDecoration(
                       color: Colors.white,
@@ -371,7 +372,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black12,
-                          blurRadius: 10,
+                          blurRadius: 10, 
                           offset: Offset(0, -2),
                         ),
                       ],
@@ -379,6 +380,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Handle Bar
                         Center(
                           child: Container(
                             width: 40,
@@ -389,224 +391,243 @@ class _AbsenScreenState extends State<AbsenScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-
-                        Text(
-                          _officeName, 
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Posisi Kamu Sekarang',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
                         const SizedBox(height: 12),
 
-                        // 🟢 Jika sudah absen masuk hari ini, tampilkan pengingat checkout
-                        if (alreadyCheckedIn)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.green.shade200),
-                            ),
-                            child: Row(
+                        // 🟢 Konten Informasi (Bisa di-scroll jika layar terbatas)
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Kamu sudah absen masuk hari ini. Buka menu ini lagi saat pulang untuk checkout.',
-                                    style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w600),
+                                Text(
+                                  _officeName,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Posisi Kamu Sekarang',
+                                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 12),
 
-                        // 🟢 Info jam hadir & status keterlambatan real-time
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: _isTerlambat ? Colors.orange.shade50 : Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: _isTerlambat ? Colors.orange.shade200 : Colors.blue.shade200,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.schedule,
-                                size: 20,
-                                color: _isTerlambat ? Colors.orange.shade800 : Colors.blue.shade800,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Jam Hadir: $_jamMasuk (toleransi $_toleransiMenit menit)',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                // Info Pengingat Checkout
+                                if (alreadyCheckedIn)
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.green.shade200),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Kamu sudah absen masuk hari ini. Buka menu ini lagi saat pulang untuk checkout.',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.green.shade800,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                // Info Jam Hadir & Keterlambatan
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: _isTerlambat ? Colors.orange.shade50 : Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _isTerlambat ? Colors.orange.shade200 : Colors.blue.shade200,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.schedule,
+                                        size: 20,
                                         color: _isTerlambat ? Colors.orange.shade800 : Colors.blue.shade800,
                                       ),
-                                    ),
-                                    Text(
-                                      _isTerlambat
-                                          ? 'Sekarang sudah melewati batas absen \u2014 akan tercatat Terlambat.'
-                                          : 'Absen sekarang akan tercatat tepat waktu (Hadir).',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: _isTerlambat ? Colors.orange.shade700 : Colors.blue.shade700,
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Jam Hadir: $_jamMasuk (toleransi $_toleransiMenit menit)',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: _isTerlambat ? Colors.orange.shade800 : Colors.blue.shade800,
+                                              ),
+                                            ),
+                                            Text(
+                                              _isTerlambat
+                                                  ? 'Sekarang sudah melewati batas absen \u2014 akan tercatat Terlambat.'
+                                                  : 'Absen sekarang akan tercatat tepat waktu (Hadir).',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: _isTerlambat ? Colors.orange.shade700 : Colors.blue.shade700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
 
-                        if (_errorMessage != null)
-                          Row(
-                            children: [
-                              Icon(Icons.error_outline, size: 20, color: Colors.red.shade700),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage!,
-                                  style: TextStyle(fontSize: 14, color: Colors.red.shade700),
-                                ),
-                              ),
-                            ],
-                          )
-                        else if (!hasLocation)
-                          Row(
-                            children: const [
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                              SizedBox(width: 8),
-                              Text('Mencari lokasi kamu...'),
-                            ],
-                          )
-                        else
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.near_me_outlined,
-                                size: 20,
-                                color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '${distance.toInt()} meter dari kantor',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 16),
-
-                        if (hasLocation)
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: isWithinRadius ? Colors.green.shade50 : Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isWithinRadius ? Colors.green.shade200 : Colors.red.shade200,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isWithinRadius ? Icons.check_circle : Icons.cancel,
-                                  color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
-                                  size: 32,
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                // Info Lokasi / Jarak
+                                if (_errorMessage != null)
+                                  Row(
                                     children: [
+                                      Icon(Icons.error_outline, size: 20, color: Colors.red.shade700),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _errorMessage!,
+                                          style: TextStyle(fontSize: 14, color: Colors.red.shade700),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else if (!hasLocation)
+                                  Row(
+                                    children: const [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Mencari lokasi kamu...'),
+                                    ],
+                                  )
+                                else
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.near_me_outlined,
+                                        size: 20,
+                                        color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                      ),
+                                      const SizedBox(width: 8),
                                       Text(
-                                        isWithinRadius ? 'Dalam Radius' : 'Di Luar Radius',
+                                        '${distance.toInt()} meter dari kantor',
                                         style: TextStyle(
-                                          color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
-                                          fontWeight: FontWeight.bold,
                                           fontSize: 16,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        isWithinRadius
-                                            ? 'Kamu bisa melakukan absen sekarang.'
-                                            : 'Mendekatlah ke area area kantor untuk absen.',
-                                        style: TextStyle(
                                           color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
-                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
+                                    ],
+                                  ),
+                                const SizedBox(height: 12),
+
+                                // Card Dalam/Luar Radius
+                                if (hasLocation)
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: BoxDecoration(
+                                      color: isWithinRadius ? Colors.green.shade50 : Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isWithinRadius ? Colors.green.shade200 : Colors.red.shade200,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          isWithinRadius ? Icons.check_circle : Icons.cancel,
+                                          color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                          size: 32,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                isWithinRadius ? 'Dalam Radius' : 'Di Luar Radius',
+                                                style: TextStyle(
+                                                  color: isWithinRadius ? Colors.green.shade800 : Colors.red.shade800,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                isWithinRadius
+                                                    ? 'Kamu bisa melakukan absen sekarang.'
+                                                    : 'Mendekatlah ke area kantor untuk absen.',
+                                                style: TextStyle(
+                                                  color: isWithinRadius ? Colors.green.shade700 : Colors.red.shade700,
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                // Latitude & Longitude
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.my_location, size: 20, color: Colors.grey),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          hasLocation
+                                              ? 'Lat: ${_currentLocation!.latitude.toStringAsFixed(5)} • Long: ${_currentLocation!.longitude.toStringAsFixed(5)}'
+                                              : 'Lokasi belum tersedia',
+                                          style: const TextStyle(color: Colors.black87, fontSize: 13),
+                                        ),
+                                      ),
+                                      if (_isLoadingLocation)
+                                        const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      else
+                                        InkWell(
+                                          onTap: _refreshLocation,
+                                          child: const Text(
+                                            'Refresh',
+                                            style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        const SizedBox(height: 16),
-
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.my_location, size: 20, color: Colors.grey),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  hasLocation
-                                      ? 'Lat: ${_currentLocation!.latitude.toStringAsFixed(5)} • Long: ${_currentLocation!.longitude.toStringAsFixed(5)}'
-                                      : 'Lokasi belum tersedia',
-                                  style: const TextStyle(color: Colors.black87, fontSize: 13),
-                                ),
-                              ),
-                              if (_isLoadingLocation)
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              else
-                                InkWell(
-                                  onTap: _refreshLocation,
-                                  child: const Text(
-                                    'Refresh',
-                                    style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                            ],
-                          ),
                         ),
-                        const Spacer(),
 
+                        const SizedBox(height: 12),
+
+                        // 🟢 Tombol Aksi di Bagian Bawah
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -621,7 +642,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               elevation: 0,
                             ),
-                            icon: _isSubmitting 
+                            icon: _isSubmitting
                                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                 : Icon(
                                     hasCompletedToday
@@ -639,7 +660,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
 
                         SizedBox(
                           width: double.infinity,
@@ -654,7 +675,7 @@ class _AbsenScreenState extends State<AbsenScreen> {
                       ],
                     ),
                   ),
-                ),
+                )
               ],
             ),
       ),

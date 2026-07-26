@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/utils/date_formatter.dart';
@@ -112,16 +113,13 @@ class _HomeContent extends StatelessWidget {
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.badge_rounded, color: Colors.white, size: 20),
+                   child: Image.asset(
+            AppAssets.logo,
+            fit: BoxFit.contain,
+          ),
         ),
         const SizedBox(width: 10),
         GestureDetector(
-          onLongPress: () {
-            Navigator.pushNamed(context, AppRoutes.adminDashboard); 
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Bypass Mode: Masuk Ke Dashboard Admin')),
-            );
-          },
           child: const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
