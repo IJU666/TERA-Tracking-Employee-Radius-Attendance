@@ -1,555 +1,779 @@
-  import 'package:flutter/material.dart';
-  import 'package:cloud_firestore/cloud_firestore.dart';
-  import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
-  class LeaveApprovalScreen extends StatefulWidget {
-    const LeaveApprovalScreen({super.key});
+// Model Helper untuk Header dan Item Data
+abstract class ListItem {}
 
-    @override
-    State<LeaveApprovalScreen> createState() => _LeaveApprovalScreenState();
+class HeaderItem extends ListItem {
+  final String title;
+  HeaderItem(this.title);
+}
+
+class DataItem extends ListItem {
+  final Map<String, dynamic> data;
+  DataItem(this.data);
+}
+
+class LeaveApprovalScreen extends StatefulWidget {
+  const LeaveApprovalScreen({super.key});
+
+  @override
+  State<LeaveApprovalScreen> createState() => _LeaveApprovalScreenState();
+}
+
+class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
+  final TextEditingController _searchController = TextEditingController();
+
+  // Parameter Filter & Pagination
+  String _selectedStatus = 'Semua';
+  String _searchQuery = '';
+  DateTimeRange? _selectedDateRange;
+
+  final int _limit = 10;
+  int _currentPage = 1;
+  bool _isLoading = false;
+
+  // Menyimpan seluruh data dokumen dari Firestore
+  List<QueryDocumentSnapshot> _allDocs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
   }
 
-  class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> with SingleTickerProviderStateMixin {
-    late TabController _tabController;
-    final TextEditingController _searchController = TextEditingController();
-    String _searchQuery = '';
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-    @override
-    void initState() {
-      super.initState();
-      _tabController = TabController(length: 4, vsync: this);
-    }
+  // --- PEMANGGILAN DATA FIRESTORE (POLOS TANPA WHERE/ORDER BY) ---
+  Future<void> _fetchData() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
 
-    @override
-    void dispose() {
-      _tabController.dispose();
-      _searchController.dispose();
-      super.dispose();
-    }
+    try {
+      // Ambil data mentah tanpa .where() atau .orderBy() agar TIDAK PERNAH error index
+      QuerySnapshot snapshot = await FirebaseFirestore.instance
+          .collectionGroup('cuti_izin')
+          .get();
 
-    // POP-UP DIALOG 1: Konfirmasi Setujui Permohonan Cuti
-    void _showApproveDialog(String docId, String name, String dateRange) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircleAvatar(
-                radius: 36,
-                backgroundColor: Color(0xFFE8F5E9),
-                child: Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 48),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Setujui pengajuan ini?',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 4),
-                    Text(dateRange, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D47A1),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  onPressed: () => _updateStatus(docId, 'Disetujui'),
-                  child: const Text('Ya, Setujui', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.grey[300]!),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
+      List<QueryDocumentSnapshot> fetchedDocs = snapshot.docs;
+
+      // Urutkan tanggal created_at di memori aplikasi (Terbaru ke Terlama)
+      fetchedDocs.sort((a, b) {
+        var dataA = a.data() as Map<String, dynamic>;
+        var dataB = b.data() as Map<String, dynamic>;
+
+        Timestamp tA = dataA['created_at'] ?? Timestamp.now();
+        Timestamp tB = dataB['created_at'] ?? Timestamp.now();
+
+        return tB.compareTo(tA);
+      });
+
+      setState(() {
+        _allDocs = fetchedDocs;
+        _currentPage = 1;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data: $e'),
+            backgroundColor: Colors.red,
           ),
-        ),
-      );
+        );
+      }
     }
+  }
 
-    // POP-UP DIALOG 2: Konfirmasi Tolak Permohonan Cuti + Alasan Penolakan
-    void _showRejectDialog(String docId, String name, String type, String date) {
-      final TextEditingController reasonController = TextEditingController();
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          contentPadding: const EdgeInsets.all(24),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Center(
-                child: CircleAvatar(
-                  radius: 36,
-                  backgroundColor: Color(0xFFFFEBEE),
-                  child: Icon(Icons.close_rounded, color: Color(0xFFC62828), size: 48),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Center(
-                child: Text(
-                  'Tolak pengajuan ini?',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: Text(
-                  '$name - $type ($date)',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Alasan penolakan (opsional)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: reasonController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                  hintText: 'Masukkan alasan...',
-                  hintStyle: const TextStyle(color: Colors.black26, fontSize: 13),
-                  fillColor: const Color(0xFFF5F5F5),
-                  filled: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: Colors.grey[300]!),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Batal', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFC62828),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  onPressed: () => _updateStatus(docId, 'Ditolak', alasan: reasonController.text.trim()),
-                  child: const Text('Ya, Tolak', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Eksekusi Update Status ke Firebase Firestore
-    Future<void> _updateStatus(String docId, String status, {String alasan = ''}) async {
-      Navigator.pop(context); // Tutup dialog konfirmasi
-      
-      try {
-        final batch = FirebaseFirestore.instance.batch();
-        final cutiRef = FirebaseFirestore.instance.collection('cuti_izin').doc(docId);
-        
-        // Update status di koleksi cuti_izin utama
-        batch.update(cutiRef, {
-          'status': status,
-          'alasanPenolakan': alasan,
-          'diprosesOleh': 'Admin',
-          'tanggalDiproses': FieldValue.serverTimestamp(),
-        });
-
-        // Sinkronisasi status di dokumen notifikasi terkait jika ada
-        final notifSnapshot = await FirebaseFirestore.instance
-            .collection('notifications')
-            .where('idReferensi', isEqualTo: docId)
-            .get();
-
-        for (var doc in notifSnapshot.docs) {
-          batch.update(doc.reference, {
-            'isRead': true,
-            'statusAction': status,
-          });
-        }
-
-        await batch.commit();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Pengajuan berhasil di-$status'),
-              backgroundColor: status == 'Disetujui' ? Colors.green : Colors.red,
+  // --- DIALOG PICKER TANGGAL ---
+  Future<void> _selectDateRange(BuildContext context) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: _selectedDateRange,
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF2563EB),
+              onPrimary: Colors.white,
             ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedDateRange = picked;
+        _currentPage = 1;
+      });
+    }
+  }
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return '-';
+    if (timestamp is Timestamp) {
+      DateTime dt = timestamp.toDate();
+      return DateFormat('dd MMM yyyy').format(dt);
+    }
+    return '-';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. FILTERING DI SISI CLIENT (STATUS, NAMA, & TANGGAL)
+    List<QueryDocumentSnapshot> filteredDocs = _allDocs.where((doc) {
+      var data = doc.data() as Map<String, dynamic>;
+
+      // A. Filter Status ("Semua", "Pending", "Disetujui", "Ditolak")
+      bool matchesStatus = true;
+      if (_selectedStatus != 'Semua') {
+        String statusDoc = (data['status'] ?? 'Pending').toString();
+        matchesStatus = statusDoc.toLowerCase() == _selectedStatus.toLowerCase();
+      }
+
+      // B. Filter Search Nama Karyawan
+      String nama = (data['nama'] ?? '').toString().toLowerCase();
+      bool matchesSearch = nama.contains(_searchQuery);
+
+      // C. Filter Rentang Tanggal
+      bool matchesDate = true;
+      if (_selectedDateRange != null) {
+        dynamic ts = data['date_start'] ?? data['created_at'];
+        if (ts is Timestamp) {
+          DateTime dt = ts.toDate();
+          DateTime start = DateTime(
+            _selectedDateRange!.start.year,
+            _selectedDateRange!.start.month,
+            _selectedDateRange!.start.day,
           );
+          DateTime end = DateTime(
+            _selectedDateRange!.end.year,
+            _selectedDateRange!.end.month,
+            _selectedDateRange!.end.day,
+            23, 59, 59,
+          );
+          matchesDate = dt.isAfter(start.subtract(const Duration(seconds: 1))) &&
+              dt.isBefore(end);
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memperbarui status: $e')));
+      }
+
+      return matchesStatus && matchesSearch && matchesDate;
+    }).toList();
+
+    // 2. PAGINATION
+    int totalPages =
+        (filteredDocs.isEmpty) ? 1 : (filteredDocs.length / _limit).ceil();
+    if (_currentPage > totalPages) _currentPage = totalPages;
+
+    int startIndex = (_currentPage - 1) * _limit;
+    int endIndex = startIndex + _limit;
+    if (endIndex > filteredDocs.length) endIndex = filteredDocs.length;
+
+    List<QueryDocumentSnapshot> paginatedDocs =
+        filteredDocs.isEmpty ? [] : filteredDocs.sublist(startIndex, endIndex);
+
+    // 3. LOGIKA PENGELOMPOKAN (GROUPING)
+    List<ListItem> displayItems = [];
+
+    if (_selectedStatus == 'Semua') {
+      // Jika tab "Semua", kelompokkan berdasarkan Status (Pending, Disetujui, Ditolak)
+      for (var statusGroup in ['Pending', 'Disetujui', 'Ditolak']) {
+        var groupDocs = paginatedDocs.where((doc) {
+          var data = doc.data() as Map<String, dynamic>;
+          String s = (data['status'] ?? 'Pending').toString();
+          return s.toLowerCase() == statusGroup.toLowerCase();
+        }).toList();
+
+        if (groupDocs.isNotEmpty) {
+          displayItems.add(HeaderItem(statusGroup));
+          for (var doc in groupDocs) {
+            displayItems.add(DataItem(doc.data() as Map<String, dynamic>));
+          }
         }
+      }
+    } else {
+      // Jika memilih tab spesifik (Pending/Disetujui/Ditolak), kelompokkan berdasarkan Bulan & Tahun
+      String lastGroupHeader = '';
+      for (var doc in paginatedDocs) {
+        var data = doc.data() as Map<String, dynamic>;
+        dynamic ts = data['date_start'] ?? data['created_at'];
+        String groupHeader = 'Tanpa Tanggal';
+
+        if (ts is Timestamp) {
+          groupHeader = DateFormat('MMMM yyyy').format(ts.toDate());
+        }
+
+        if (groupHeader != lastGroupHeader) {
+          displayItems.add(HeaderItem(groupHeader));
+          lastGroupHeader = groupHeader;
+        }
+        displayItems.add(DataItem(data));
       }
     }
 
-    @override
-    Widget build(BuildContext context) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF0D47A1)),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: const Text(
-            'Persetujuan Cuti & Izin',
-            style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          bottom: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            indicatorColor: const Color(0xFF0D47A1),
-            labelColor: const Color(0xFF0D47A1),
-            unselectedLabelColor: Colors.grey,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            tabs: [
-              const Tab(text: 'Semua'),
-              // STREAMBUILDER BADGE HITUNG JUMLAH PENDING SECARA REALTIME DI TAB BAR
-              Tab(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance.collection('cuti_izin').where('status', isEqualTo: 'Pending').snapshots(),
-                  builder: (context, snapshot) {
-                    int pendingCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-                    return Row(
-                      children: [
-                        const Text('Pending'),
-                        if (pendingCount > 0) ...[
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: const Color(0xFFE65100), borderRadius: BorderRadius.circular(10)),
-                            child: Text('$pendingCount', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                          )
-                        ]
-                      ],
-                    );
-                  },
-                ),
-              ),
-              const Tab(text: 'Disetujui'),
-              const Tab(text: 'Ditolak'),
-            ],
-          ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F9),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Color(0xFF1E293B), size: 20),
+          onPressed: () => Navigator.pop(context),
         ),
-        body: Column(
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bar Pencarian Nama Karyawan
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value.trim().toLowerCase()),
-                decoration: InputDecoration(
-                  hintText: 'Cari nama karyawan...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  fillColor: const Color(0xFFF1F3F4),
-                  filled: true,
-                  contentPadding: EdgeInsets.zero,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
+            Text(
+              'Audit Cuti & Izin',
+              style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18),
             ),
-            
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildLeaveStream('Semua'),
-                  _buildLeaveStream('Pending'),
-                  _buildLeaveStream('Disetujui'),
-                  _buildLeaveStream('Ditolak'),
-                ],
-              ),
+            Text(
+              'Monitoring persetujuan manajer',
+              style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal),
             ),
           ],
         ),
-      );
+      ),
+      body: Column(
+        children: [
+          _buildFilterAndSearchSection(),
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF2563EB)))
+                : displayItems.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: () => _fetchData(),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                          itemCount: displayItems.length,
+                          itemBuilder: (context, index) {
+                            final item = displayItems[index];
+
+                            if (item is HeaderItem) {
+                              return _buildGroupHeader(item.title);
+                            }
+
+                            if (item is DataItem) {
+                              return _buildAuditCard(item.data);
+                            }
+
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+      bottomSheet: _buildPaginationBar(totalPages),
+    );
+  }
+
+  // --- WIDGET FILTER & SEARCH BAR ---
+  Widget _buildFilterAndSearchSection() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) =>
+                      setState(() => _searchQuery = val.trim().toLowerCase()),
+                  decoration: InputDecoration(
+                    hintText: 'Cari nama karyawan...',
+                    hintStyle: const TextStyle(
+                        color: Color(0xFF94A3B8), fontSize: 13),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: Color(0xFF64748B)),
+                    fillColor: const Color(0xFFF1F5F9),
+                    filled: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Tombol Date Picker
+              InkWell(
+                onTap: () => _selectDateRange(context),
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _selectedDateRange == null
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _selectedDateRange == null
+                          ? Colors.transparent
+                          : const Color(0xFF2563EB),
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.date_range_rounded,
+                    color: _selectedDateRange == null
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFF2563EB),
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Indikator Rentang Tanggal Aktif
+          if (_selectedDateRange != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.filter_alt_rounded,
+                          size: 12, color: Color(0xFF2563EB)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange!.end)}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedDateRange = null),
+                        child: const Icon(Icons.close_rounded,
+                            size: 14, color: Color(0xFF2563EB)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: 10),
+
+          // Chips Pengelompokan / Filter Status
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children:
+                  ['Semua', 'Pending', 'Disetujui', 'Ditolak'].map((status) {
+                bool isSelected = _selectedStatus == status;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: FilterChip(
+                    label: Text(status),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _selectedStatus = status;
+                          _currentPage = 1; // Reset halaman
+                        });
+                      }
+                    },
+                    selectedColor: const Color(0xFF2563EB),
+                    backgroundColor: const Color(0xFFF1F5F9),
+                    labelStyle: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : const Color(0xFF475569),
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide.none,
+                    showCheckmark: false,
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- HEADER GRUP ---
+  Widget _buildGroupHeader(String title) {
+    IconData icon = Icons.bookmark_rounded;
+    Color color = const Color(0xFF2563EB);
+
+    if (title == 'Pending') {
+      icon = Icons.hourglass_top_rounded;
+      color = const Color(0xFFB45309);
+    } else if (title == 'Disetujui') {
+      icon = Icons.check_circle_rounded;
+      color = const Color(0xFF15803D);
+    } else if (title == 'Ditolak') {
+      icon = Icons.cancel_rounded;
+      color = const Color(0xFFB91C1C);
+    } else {
+      icon = Icons.calendar_month_rounded;
     }
 
-    Widget _buildLeaveStream(String filterStatus) {
-      Query query = FirebaseFirestore.instance.collection('cuti_izin').orderBy('tanggalPengajuan', descending: true);
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 8, left: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Divider(color: Color(0xFFE2E8F0), thickness: 1),
+          ),
+        ],
+      ),
+    );
+  }
 
-      if (filterStatus != 'Semua') {
-        query = query.where('status', isEqualTo: filterStatus);
-      }
+  // --- CARD ITEM PENGAJUAN ---
+  Widget _buildAuditCard(Map<String, dynamic> data) {
+    String namaKaryawan = data['nama'] ?? 'Tanpa Nama';
+    String tipePengajuan = data['type'] ?? 'Izin / Cuti';
+    String alasan = data['alasan'] ?? '-';
+    String status = data['status'] ?? 'Pending';
+    String namaManager = data['nama_manager'] ?? '-';
+    String ketManager = data['keterangan_manager'] ?? '-';
 
-      return StreamBuilder<QuerySnapshot>(
-        stream: query.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    String tglMulai = _formatTimestamp(data['date_start']);
+    String tglSelesai = _formatTimestamp(data['date_end']);
 
-          var docs = snapshot.data?.docs ?? [];
-          
-          // Filter nama jika user mengetik di search bar
-          if (_searchQuery.isNotEmpty) {
-            docs = docs.where((doc) {
-              var data = doc.data() as Map<String, dynamic>;
-              return (data['nama'] ?? '').toString().toLowerCase().contains(_searchQuery);
-            }).toList();
-          }
-
-          // KONDISI EMPTY STATE (TAMPILAN JIKA TIDAK ADA DATA PADA KATEGORI INI)
-          if (docs.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          )
+        ],
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: const Color(0xFFEFF6FF),
+                child: Text(
+                  namaKaryawan.isNotEmpty
+                      ? namaKaryawan[0].toUpperCase()
+                      : '?',
+                  style: const TextStyle(
+                      color: Color(0xFF2563EB),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      namaKaryawan,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Color(0xFF0F172A)),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
                     Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-                      child: Icon(Icons.mail_outline_rounded, size: 80, color: Colors.grey[300]),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Belum ada pengajuan pada kategori ini',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Semua pengajuan baru akan muncul di sini. Kami akan memberitahu Anda saat ada data yang masuk.',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                       ),
-                      onPressed: () => setState(() {}),
-                      icon: const Icon(Icons.refresh, color: Color(0xFF0D47A1), size: 18),
-                      label: const Text('Perbarui Data', style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
+                      child: Text(
+                        tipePengajuan,
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
               ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              var doc = docs[index];
-              var data = doc.data() as Map<String, dynamic>;
-              String docId = doc.id;
-              String name = data['nama'] ?? '-';
-              String position = data['jabatan'] ?? '-';
-              String type = data['jenis'] ?? 'Cuti'; // Cuti / Izin
-              String dateRange = data['rentangTanggal'] ?? '-';
-              String duration = data['durasi'] ?? '-';
-              String note = data['keterangan'] ?? '-';
-              String status = data['status'] ?? 'Pending';
-              String avatarUrl = data['avatarUrl'] ?? 'https://via.placeholder.com/150';
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              _buildStatusBadge(status),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1, color: Color(0xFFF1F5F9)),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.calendar_today_rounded,
+                  size: 14, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              Text(
+                '$tglMulai - $tglSelesai',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF334155)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '"$alasan"',
+            style: const TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    // Baris Atas: Profil Karyawan & Label Status Utama
-                    Row(
-                      children: [
-                        CircleAvatar(radius: 24, backgroundImage: NetworkImage(avatarUrl)),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              const SizedBox(height: 2),
-                              Text(position, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                        _buildStatusBadge(status),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // Label info Jenis Permohonan & Detail Tanggal
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: type == 'Cuti' ? const Color(0xFFF3E5F5) : const Color(0xFFE8F5E9),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            type,
-                            style: TextStyle(
-                              color: type == 'Cuti' ? const Color(0xFF8E24AA) : const Color(0xFF2E7D32),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey[600]),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            '$dateRange • $duration',
-                            style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    
-                    // Catatan Alasan dari Karyawan
+                    const Icon(Icons.verified_user_rounded,
+                        size: 16, color: Color(0xFF2563EB)),
+                    const SizedBox(width: 6),
                     Text(
-                      '"$note"',
-                      style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.black54, fontSize: 13),
+                      'Ditinjau oleh Manager:',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade600),
                     ),
-                    const SizedBox(height: 14),
-
-                    // TAMPILAN TOMBOL AKSI JIKA STATUS MASIH 'PENDING'
-                    if (status == 'Pending')
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFC62828)),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              onPressed: () => _showRejectDialog(docId, name, type, dateRange),
-                              child: const Text('Tolak', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0D47A1),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                elevation: 0,
-                              ),
-                              onPressed: () => _showApproveDialog(docId, name, dateRange),
-                              child: const Text('Setujui', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      // Log Keterangan Tambahan jika data sudah selesai diulas oleh admin
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.verified_user_outlined, size: 14, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                status == 'Disetujui'
-                                    ? 'Diproses oleh Admin • Selesai'
-                                    : 'Ditolak dengan alasan: ${data['alasanPenolakan'] ?? "-"}',
-                                style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
+                    const Spacer(),
+                    Text(
+                      namaManager.isNotEmpty ? namaManager : '-',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B)),
+                    ),
                   ],
                 ),
-              );
-            },
-          );
-        },
-      );
-    }
-
-    Widget _buildStatusBadge(String status) {
-      Color bg;
-      Color text;
-      if (status == 'Pending') {
-        bg = const Color(0xFFFFEBEE);
-        text = const Color(0xFFE65100);
-      } else if (status == 'Disetujui') {
-        bg = const Color(0xFFE8F5E9);
-        text = const Color(0xFF2E7D32);
-      } else {
-        bg = const Color(0xFFFFEBEE);
-        text = const Color(0xFFC62828);
-      }
-
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
-        child: Text(
-          status,
-          style: TextStyle(color: text, fontSize: 11, fontWeight: FontWeight.bold),
-        ),
-      );
-    }
+                if (ketManager.isNotEmpty && ketManager != '-') ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Catatan Manager: "$ketManager"',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF475569),
+                        fontWeight: FontWeight.w500),
+                  ),
+                ]
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
+
+  // --- BADGE STATUS ---
+  Widget _buildStatusBadge(String status) {
+    Color bg;
+    Color text;
+    IconData icon;
+
+    switch (status) {
+      case 'Disetujui':
+        bg = const Color(0xFFDCFCE7);
+        text = const Color(0xFF15803D);
+        icon = Icons.check_circle_rounded;
+        break;
+      case 'Ditolak':
+        bg = const Color(0xFFFEE2E2);
+        text = const Color(0xFFB91C1C);
+        icon = Icons.cancel_rounded;
+        break;
+      default:
+        bg = const Color(0xFFFEF3C7);
+        text = const Color(0xFFB45309);
+        icon = Icons.hourglass_top_rounded;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: text),
+          const SizedBox(width: 4),
+          Text(
+            status,
+            style: TextStyle(
+                color: text, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- PAGINATION BAR ---
+  Widget _buildPaginationBar(int totalPages) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          OutlinedButton.icon(
+            onPressed: (_currentPage > 1 && !_isLoading)
+                ? () => setState(() => _currentPage--)
+                : null,
+            icon: const Icon(Icons.chevron_left_rounded, size: 18),
+            label: const Text('Prev'),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Halaman $_currentPage dari $totalPages',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF334155)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: (_currentPage < totalPages && !_isLoading)
+                ? () => setState(() => _currentPage++)
+                : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            child: const Row(
+              children: [
+                Text('Next', style: TextStyle(color: Colors.white)),
+                SizedBox(width: 4),
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: Colors.white),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- EMPTY STATE ---
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9), shape: BoxShape.circle),
+            child: const Icon(Icons.inbox_rounded,
+                size: 48, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Tidak ada data pengajuan',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Data cuti/izin belum ditemukan pada filter ini.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+}
