@@ -1,11 +1,13 @@
 import '../constants/app_strings.dart';
+
 class ValidatorUtil {
   ValidatorUtil._();
 
-  static final RegExp _emailRegex =
-      RegExp(r'^[\w\.\-]+@([\w\-]+\.)+[\w\-]{2,4}$');
+  static final RegExp _emailRegex = RegExp(
+    r'^[\w\.\-]+@([\w\-]+\.)+[\w\-]{2,4}$',
+  );
 
-  static final RegExp _nikRegex = RegExp(r'^\d{16}$');
+  static final RegExp _nikRegex = RegExp(r'^\d{9}$');
 
   /// Validasi email kantor.
   static String? validateEmail(String? value) {
@@ -30,11 +32,11 @@ class ValidatorUtil {
     return null;
   }
 
-  /// Validasi NIK (16 digit angka).
+  /// Validasi NIK (9 digit angka).
   static String? validateNik(String? value) {
     final text = value?.trim() ?? '';
     if (text.isEmpty) return AppStrings.errorFieldRequired;
-    if (!_nikRegex.hasMatch(text)) return 'NIK harus 16 digit angka';
+    if (!_nikRegex.hasMatch(text)) return 'NIK harus 9 digit angka';
     return null;
   }
 

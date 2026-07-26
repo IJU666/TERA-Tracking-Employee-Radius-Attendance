@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tugas_besar/screens/notification/notification_screen.dart';
 import '../../core/routes/app_routes.dart';
 
@@ -30,7 +30,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           setState(() => _adminName = user.displayName!);
         } else {
           // PERBAIKAN: Mengubah koleksi dari 'karyawan' menjadi 'users' sesuai Firestore Anda
-          var adminDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+          var adminDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
           if (adminDoc.exists && adminDoc.data()?['nama'] != null) {
             setState(() => _adminName = adminDoc.data()?['nama']);
           }
@@ -45,11 +48,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _getFormattedDate() {
     DateTime now = DateTime.now();
     List<String> months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
-    List<String> days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    
+    List<String> days = [
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+    ];
+
     return '${days[now.weekday % 7]}, ${now.day} ${months[now.month - 1]} ${now.year}';
   }
 
@@ -62,14 +83,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         elevation: 0,
         title: const Text(
           'Dashboard Admin',
-          style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold, fontSize: 20),
+          style: TextStyle(
+            color: Color(0xFF0D47A1),
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.black, size: 28),
+            icon: const Icon(
+              Icons.notifications_none,
+              color: Colors.black,
+              size: 28,
+            ),
             onPressed: () => Navigator.push(
-              context, 
-              MaterialPageRoute(builder: (context) => const NotificationScreen()),
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationScreen(),
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -99,7 +130,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 // Salam Pengguna Dinamis sesuai User Login
                 Text(
                   'Selamat datang, $_adminName',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 // Tanggal Otomatis Mengikuti Waktu HP Aktual
@@ -132,7 +167,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         subtitle: 'total terdaftar',
                         bgColor: const Color(0xFFE8F5E9),
                         textColor: const Color(0xFF2E7D32),
-                        onTap: () => Navigator.pushNamed(context, AppRoutes.employeeManagement),
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.employeeManagement,
+                        ),
                       ),
                     ),
                   ],
@@ -142,13 +180,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     Expanded(
                       child: StreamBuilder<QuerySnapshot>(
+                        // 🔥 FIX: data cuti/izin sebenarnya tersimpan di
+                        // subcollection users/{uid}/cuti_izin (lihat
+                        // leave_provider.dart), BUKAN di collection
+                        // top-level 'cuti_izin' yang lama (selalu kosong).
+                        // collectionGroup di sini menembus semua subcollection
+                        // bernama 'cuti_izin' di seluruh dokumen users.
                         stream: FirebaseFirestore.instance
-                            .collection('cuti_izin') 
+                            .collectionGroup('cuti_izin')
                             .where('status', isEqualTo: 'Pending')
                             .snapshots(),
                         builder: (context, cutiSnapshot) {
                           int totalCutiPending = 0;
-                          if (cutiSnapshot.hasData && cutiSnapshot.data != null) {
+                          if (cutiSnapshot.hasData &&
+                              cutiSnapshot.data != null) {
                             totalCutiPending = cutiSnapshot.data!.docs.length;
                           }
 
@@ -160,7 +205,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             bgColor: const Color(0xFFFFF3E0),
                             textColor: const Color(0xFFE65100),
                             hasNotificationDot: totalCutiPending > 0,
-                            onTap: () => Navigator.pushNamed(context, AppRoutes.leaveApproval),
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.leaveApproval,
+                            ),
                           );
                         },
                       ),
@@ -174,7 +222,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
                           ],
                         ),
                         child: Column(
@@ -186,21 +238,53 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(10)),
-                                  child: const Icon(Icons.location_on_outlined, color: Colors.black54),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.location_on_outlined,
+                                    color: Colors.black54,
+                                  ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(6)),
-                                  child: const Text('50m Radius', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                                )
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    '50m Radius',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: const [
-                                Text('Lat: -6.9147', style: TextStyle(fontSize: 11, color: Colors.black54, fontFamily: 'monospace')),
-                                Text('Long: 107.6098', style: TextStyle(fontSize: 11, color: Colors.black54, fontFamily: 'monospace')),
+                                Text(
+                                  'Lat: -6.9147',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                                Text(
+                                  'Long: 107.6098',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
                               ],
                             ),
                             SizedBox(
@@ -209,13 +293,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF0D47A1),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                   elevation: 0,
                                 ),
-                                onPressed: () => Navigator.pushNamed(context, AppRoutes.officeSetting),
-                                child: const Text('Edit Lokasi', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                onPressed: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.officeSetting,
+                                ),
+                                child: const Text(
+                                  'Edit Lokasi',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                            )
+                            ),
                           ],
                         ),
                       ),
@@ -230,12 +326,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     const Text(
                       'Aktivitas Terbaru',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.pushNamed(context, AppRoutes.employeeManagement),
-                      child: const Text('Lihat Semua', style: TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
-                    )
+                      onPressed: () => Navigator.pushNamed(
+                        context,
+                        AppRoutes.employeeManagement,
+                      ),
+                      child: const Text(
+                        'Lihat Semua',
+                        style: TextStyle(
+                          color: Color(0xFF0D47A1),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -243,7 +352,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 if (snapshot.connectionState == ConnectionState.waiting)
                   const Center(child: CircularProgressIndicator())
                 else if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-                  const Text('Belum ada aktivitas karyawan hari ini.', style: TextStyle(color: Colors.grey, fontSize: 13))
+                  const Text(
+                    'Belum ada aktivitas karyawan hari ini.',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  )
                 else
                   Builder(
                     builder: (context) {
@@ -253,7 +365,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       }).toList();
 
                       if (aktifDocs.isEmpty) {
-                        return const Text('Belum ada aktivitas masuk/izin hari ini.', style: TextStyle(color: Colors.grey, fontSize: 13));
+                        return const Text(
+                          'Belum ada aktivitas masuk/izin hari ini.',
+                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                        );
                       }
 
                       return ListView.separated(
@@ -262,16 +377,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         itemCount: aktifDocs.length > 3 ? 3 : aktifDocs.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          var data = aktifDocs[index].data() as Map<String, dynamic>;
+                          var data =
+                              aktifDocs[index].data() as Map<String, dynamic>;
                           String status = data['statusHariIni'] ?? 'Hadir';
-                          
+
                           return _buildActivityRow(
                             name: data['nama'] ?? '-',
                             desc: '${data['jabatan'] ?? '-'} • Status Hari Ini',
                             status: status,
-                            badgeBg: status == 'Hadir' ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
-                            badgeText: status == 'Hadir' ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-                            icon: status == 'Hadir' ? Icons.login_rounded : Icons.calendar_today_rounded,
+                            badgeBg: status == 'Hadir'
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFFFF3E0),
+                            badgeText: status == 'Hadir'
+                                ? const Color(0xFF2E7D32)
+                                : const Color(0xFFE65100),
+                            icon: status == 'Hadir'
+                                ? Icons.login_rounded
+                                : Icons.calendar_today_rounded,
                           );
                         },
                       );
@@ -285,7 +407,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.employeeManagement),
+        onPressed: () =>
+            Navigator.pushNamed(context, AppRoutes.employeeManagement),
         backgroundColor: const Color(0xFF0D47A1),
         shape: const CircleBorder(),
         child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -300,16 +423,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               IconButton(
-                icon: Icon(Icons.home, color: _currentIndex == 0 ? const Color(0xFF0D47A1) : Colors.grey),
+                icon: Icon(
+                  Icons.home,
+                  color: _currentIndex == 0
+                      ? const Color(0xFF0D47A1)
+                      : Colors.grey,
+                ),
                 onPressed: () => setState(() => _currentIndex = 0),
               ),
               const SizedBox(width: 40),
               IconButton(
-                icon: Icon(Icons.settings, color: _currentIndex == 1 ? const Color(0xFF0D47A1) : Colors.grey),
+                icon: Icon(
+                  Icons.settings,
+                  color: _currentIndex == 1
+                      ? const Color(0xFF0D47A1)
+                      : Colors.grey,
+                ),
                 onPressed: () {
                   setState(() => _currentIndex = 1);
                   // PERBAIKAN: Mengarahkan navigasi langsung ke AdminSettingScreen rute baru Anda
-                  Navigator.pushNamed(context, AppRoutes.AdminSettingScreen).then((_) {
+                  Navigator.pushNamed(
+                    context,
+                    AppRoutes.AdminSettingScreen,
+                  ).then((_) {
                     setState(() => _currentIndex = 0);
                   });
                 },
@@ -340,7 +476,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -352,7 +492,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                    color: bgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Icon(icon, color: textColor, size: 24),
                 ),
                 if (hasNotificationDot)
@@ -362,12 +505,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(count, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textColor)),
+                Text(
+                  count,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black)),
-                Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -388,7 +548,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.01), blurRadius: 4, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.01),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -403,20 +567,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(desc, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text(
+                  desc,
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                ),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(
+              color: badgeBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Text(
               status,
-              style: TextStyle(color: badgeText, fontSize: 11, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: badgeText,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          )
+          ),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 🔥 Import untuk TextInputFormatter (batas digit NIK)
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // WAJIB TAMBAHKAN IMPORT INI
 
@@ -193,7 +194,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         child: Material(
           color: Colors.transparent,
           child: Container(
-            height: MediaQuery.of(context).size.height * 0.9,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.9,
+            ),
             padding: EdgeInsets.only(
               top: 16,
               left: 20,
@@ -239,7 +242,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  Expanded(
+                  Flexible(
                     child: SingleChildScrollView(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,9 +255,14 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                           ),
                           _buildTextField(
                             'Nomor Induk Karyawan (NIK)',
-                            'Contoh: 2023001',
+                            'Contoh: 230102049',
                             _nikController,
                             isNumeric: true,
+                            // 🔥 NIK dibatasi maksimal 9 digit angka
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(9),
+                            ],
                           ),
                           _buildTextField(
                             'Email Perusahaan',
@@ -473,6 +481,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     bool isNumeric = false,
     bool isEmail = false,
     bool enabled = true,
+    List<TextInputFormatter>?
+    inputFormatters, // 🔥 Disalurkan ke TextFormField (mis. batas digit NIK)
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
@@ -494,6 +504,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             keyboardType: isNumeric
                 ? TextInputType.number
                 : (isEmail ? TextInputType.emailAddress : TextInputType.text),
+            inputFormatters: inputFormatters,
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: const TextStyle(color: Colors.black26, fontSize: 14),
@@ -523,6 +534,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               if (isEmail &&
                   !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value))
                 return 'Format email salah';
+              // 🔥 NIK wajib tepat 9 digit angka
+              if (label.contains('NIK') && value.trim().length != 9)
+                return 'NIK harus 9 digit angka';
               return null;
             },
           ),
