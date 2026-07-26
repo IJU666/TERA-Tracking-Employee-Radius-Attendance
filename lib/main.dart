@@ -16,6 +16,7 @@ import 'providers/leave_provider.dart';   // Tambahan (antisipasi fitur izin)
 import 'providers/user_provider.dart';    // Tambahan (antisipasi fitur karyawan)
 
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/splash_screen.dart'; // <--- IMPORT SPLASH SCREEN
 import 'screens/home/home_screen.dart';
 import 'screens/leave/leave_form_screen.dart'; 
 import 'screens/admin/admin_dashboard_screen.dart';
@@ -28,7 +29,7 @@ import 'screens/notification/notification_screen.dart';
 import 'screens/notification/employee_notification_screen.dart'; // Tambahan untuk detail karyawan
 
 // =====================================================================
-// IMPORT BARU UNTUK DASHBOARD MANAGER
+// IMPORT UNTUK DASHBOARD MANAGER
 // =====================================================================
 import 'screens/manager/manager_dashboard_screen.dart';
 // =====================================================================
@@ -53,7 +54,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         
         // =====================================================================
-        // PENDAFTARAN PROVIDER BARU AGAR TIDAK TERJADI PROVIDERNOTFOUNDERROR
+        // PENDAFTARAN PROVIDER AGAR TIDAK TERJADI PROVIDERNOTFOUNDERROR
         // =====================================================================
         ChangeNotifierProvider(create: (_) => OfficeProvider()),
         ChangeNotifierProvider(create: (_) => LeaveProvider()),
@@ -70,10 +71,18 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
         debugShowCheckedModeBanner: false,
-        initialRoute: AppRoutes.login,
+        
+        // set SplashScreen sebagai rute utama/pertama
+        initialRoute: AppRoutes.splash,
         
         routes: {
+          // =====================================================================
+          // REGISTRASI RUTE SPLASH SCREEN & AUTH
+          // =====================================================================
+          AppRoutes.splash: (_) => const SplashScreen(),
           AppRoutes.login: (_) => const LoginScreen(),
+          // =====================================================================
+          
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.history: (_) => const HistoryScreen(),
           AppRoutes.adminDashboard: (_) => const AdminDashboardScreen(), 
@@ -84,7 +93,8 @@ class MyApp extends StatelessWidget {
           AppRoutes.AdminSettingScreen: (_) => const AdminSettingScreen(),
           AppRoutes.changePassword: (_) => const ChangePasswordScreen(),
           AppRoutes.notification: (_) => const NotificationScreen(),
-          AppRoutes.employeeNotification: (_) => const EmployeeNotificationScreen(), // Tambahan untuk detail notifikasi   karyawan
+          AppRoutes.employeeNotification: (_) => const EmployeeNotificationScreen(),
+          
           // =====================================================================
           // REGISTRASI RUTE UNTUK MANAGER
           // =====================================================================
