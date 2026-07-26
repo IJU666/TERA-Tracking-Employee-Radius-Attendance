@@ -11,12 +11,12 @@ import 'firebase_options.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/notification_provider.dart';
-import 'providers/office_provider.dart'; // Tambahan untuk lokasi kantor
-import 'providers/leave_provider.dart';   // Tambahan (antisipasi fitur izin)
-import 'providers/user_provider.dart';    // Tambahan (antisipasi fitur karyawan)
+import 'providers/office_provider.dart'; 
+import 'providers/leave_provider.dart';   
+import 'providers/user_provider.dart';    
 
 import 'screens/auth/login_screen.dart';
-import 'screens/auth/splash_screen.dart'; // <--- IMPORT SPLASH SCREEN
+import 'screens/auth/splash_screen.dart'; 
 import 'screens/home/home_screen.dart';
 import 'screens/leave/leave_form_screen.dart'; 
 import 'screens/admin/admin_dashboard_screen.dart';
@@ -26,12 +26,13 @@ import 'screens/admin/leave_approval_screen.dart';
 import 'screens/admin/admin_setting_screen.dart';
 import 'screens/setting/change_password_screen.dart';
 import 'screens/notification/notification_screen.dart';
-import 'screens/notification/employee_notification_screen.dart'; // Tambahan untuk detail karyawan
+import 'screens/notification/employee_notification_screen.dart'; 
 
 // =====================================================================
-// IMPORT UNTUK DASHBOARD MANAGER
+// IMPORT UNTUK MANAGER
 // =====================================================================
 import 'screens/manager/manager_dashboard_screen.dart';
+import 'screens/manager/manager_setting_screen.dart'; // 🟢 TAMBAHAN: IMPORT MANAGER SETTING
 // =====================================================================
 
 Future<void> main() async {
@@ -52,14 +53,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..init()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        
-        // =====================================================================
-        // PENDAFTARAN PROVIDER AGAR TIDAK TERJADI PROVIDERNOTFOUNDERROR
-        // =====================================================================
         ChangeNotifierProvider(create: (_) => OfficeProvider()),
         ChangeNotifierProvider(create: (_) => LeaveProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
-        // =====================================================================
       ],
       child: MaterialApp(
         title: 'GeoAbsen',
@@ -72,16 +68,11 @@ class MyApp extends StatelessWidget {
         ),
         debugShowCheckedModeBanner: false,
         
-        // set SplashScreen sebagai rute utama/pertama
         initialRoute: AppRoutes.splash,
         
         routes: {
-          // =====================================================================
-          // REGISTRASI RUTE SPLASH SCREEN & AUTH
-          // =====================================================================
           AppRoutes.splash: (_) => const SplashScreen(),
           AppRoutes.login: (_) => const LoginScreen(),
-          // =====================================================================
           
           AppRoutes.home: (_) => const HomeScreen(),
           AppRoutes.history: (_) => const HistoryScreen(),
@@ -99,17 +90,17 @@ class MyApp extends StatelessWidget {
           // REGISTRASI RUTE UNTUK MANAGER
           // =====================================================================
           AppRoutes.managerDashboard: (_) => const ManagerDashboardScreen(),
+          AppRoutes.managerSetting: (_) => const ManagerSettingScreen(), // 🟢 TAMBAHAN: REGISTRASI RUTE MANAGER SETTING
           // =====================================================================
         },
 
-        // Fallback jika ada route yang tidak terdefinisi
         onUnknownRoute: (settings) {
           return MaterialPageRoute(
             builder: (context) => Scaffold(
               appBar: AppBar(title: const Text('Halaman Belum Tersedia')),
               body: Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(24), // ✅ Cukup satu kali
                   child: Text(
                     'Route "${settings.name}" belum didaftarkan di main.dart.\n'
                     'Cek PROGRESS.md untuk status pengembangan screen ini.',

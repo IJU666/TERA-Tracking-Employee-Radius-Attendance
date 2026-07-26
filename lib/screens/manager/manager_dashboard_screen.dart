@@ -280,7 +280,8 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                 icon: Icon(Icons.settings, color: _currentIndex == 1 ? const Color(0xFF0D47A1) : Colors.grey),
                 onPressed: () {
                   setState(() => _currentIndex = 1);
-                  Navigator.pushNamed(context, AppRoutes.AdminSettingScreen).then((_) {
+                  
+                  Navigator.pushNamed(context, AppRoutes.managerSetting).then((_) {
                     setState(() => _currentIndex = 0);
                   });
                 },

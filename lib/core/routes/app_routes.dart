@@ -27,6 +27,7 @@ class AppRoutes {
   static const String changePassword = '/change-password';
   
   static const String AdminSettingScreen = '/admin-setting';
+  static const String managerSetting = '/manager-setting'; // 🟢 TAMBAHAN: RUTE PENGATURAN MANAGER
 
   static const String notification = '/notification';
   static const String employeeNotification = '/employee-notification'; // RUTE BARU UNTUK DETAIL NOTIFIKASI KARYAWAN

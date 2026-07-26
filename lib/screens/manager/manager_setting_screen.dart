@@ -3,13 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/routes/app_routes.dart';
-import '../../models/leave_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/leave_provider.dart';
-import '../widgets/confirm_dialog.dart';
-import '../admin/employee_management_screen.dart';
-import '../admin/leave_approval_screen.dart';
 import '../setting/change_password_screen.dart';
+import '../widgets/confirm_dialog.dart';
 
 class ManagerSettingScreen extends StatefulWidget {
   const ManagerSettingScreen({super.key});
@@ -19,12 +15,11 @@ class ManagerSettingScreen extends StatefulWidget {
 }
 
 class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
-  bool _pushNotifEnabled = true; // TODO: sambungkan ke shared_preferences / notification_provider agar persist
+  bool _pushNotifEnabled = true;
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().currentUser;
-    final leaveProvider = context.read<LeaveProvider>();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -34,7 +29,11 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: const Text(
           'Pengaturan Manager',
-          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         actions: [
           IconButton(
@@ -48,6 +47,7 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
+            // 1. Profil
             _buildProfileCard(
               context,
               nama: user?.nama ?? '-',
@@ -55,54 +55,14 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
               fotoUrl: user?.avatarUrl,
             ),
             const SizedBox(height: 24),
-            _sectionLabel('Manajemen Tim'),
-            const SizedBox(height: 10),
 
-            // Realtime Badge untuk Persetujuan Cuti
-            StreamBuilder<List<LeaveModel>>(
-              stream: leaveProvider.allLeavesStream,
-              builder: (context, snapshot) {
-                int pendingCount = 0;
-                if (snapshot.hasData && snapshot.data != null) {
-                  pendingCount = snapshot.data!.where((l) => l.status == 'Pending').length;
-                }
-
-                return _menuGroup([
-                  _MenuItemData(
-                    icon: Icons.groups_rounded,
-                    iconBg: AppColors.primaryLight,
-                    iconColor: AppColors.primary,
-                    title: 'Daftar Anggota Tim',
-                    subtitle: 'Lihat profil & data karyawan',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const EmployeeManagementScreen()),
-                      );
-                    },
-                  ),
-                  _MenuItemData(
-                    icon: Icons.fact_check_rounded,
-                    iconBg: AppColors.primaryLight,
-                    iconColor: AppColors.primary,
-                    title: 'Persetujuan Cuti & Izin',
-                    subtitle: 'Setujui/tolak pengajuan anggota',
-                    badgeCount: pendingCount,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LeaveApprovalScreen()),
-                      );
-                    },
-                  ),
-                ]);
-              },
-            ),
-            const SizedBox(height: 20),
+            // 2. Notifikasi
             _sectionLabel('Notifikasi'),
             const SizedBox(height: 10),
             _buildPushNotifToggle(),
             const SizedBox(height: 20),
+
+            // 3. Akun
             _sectionLabel('Akun'),
             const SizedBox(height: 10),
             _menuGroup([
@@ -120,6 +80,8 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
               ),
             ]),
             const SizedBox(height: 20),
+
+            // 4. Lainnya
             _sectionLabel('Lainnya'),
             const SizedBox(height: 10),
             _menuGroup([
@@ -139,6 +101,8 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
               ),
             ]),
             const SizedBox(height: 20),
+
+            // 5. Tombol Keluar
             _logoutButton(context),
           ],
         ),
@@ -198,7 +162,11 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
                     Expanded(
                       child: Text(
                         nama,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -206,12 +174,16 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF0D47A1), // Warna Biru khas Manager
+                        color: const Color(0xFF0D47A1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: const Text(
                         'Manager',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -259,7 +231,11 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
                 ),
                 title: Text(
                   item.title,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 subtitle: item.subtitle != null
                     ? Text(
@@ -267,26 +243,7 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       )
                     : null,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (item.badgeCount != null && item.badgeCount! > 0) ...[
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          '${item.badgeCount}',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
-                  ],
-                ),
+                trailing: Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
                 onTap: item.onTap,
               ),
               if (i != items.length - 1)
@@ -316,7 +273,11 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
         contentPadding: EdgeInsets.zero,
         title: const Text(
           'Notifikasi Push',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
         ),
         subtitle: Text(
           'Terima notifikasi absensi & pengajuan baru',
@@ -326,7 +287,6 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
         activeColor: AppColors.primary,
         onChanged: (value) {
           setState(() => _pushNotifEnabled = value);
-          // TODO: simpan preferensi ke shared_preferences / Firestore user doc
         },
       ),
     );
@@ -373,7 +333,6 @@ class _MenuItemData {
   final Color iconColor;
   final String title;
   final String? subtitle;
-  final int? badgeCount;
   final VoidCallback onTap;
 
   _MenuItemData({
@@ -382,7 +341,6 @@ class _MenuItemData {
     required this.iconColor,
     required this.title,
     this.subtitle,
-    this.badgeCount,
     required this.onTap,
   });
 }
