@@ -1,5 +1,6 @@
 import 'dart:convert'; // Untuk base64Encode dan base64Decode
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 🔥 Import untuk TextInputFormatter
 import 'package:image_picker/image_picker.dart'; // Import Image Picker
 import 'package:provider/provider.dart';
 
@@ -52,13 +53,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  // Fungsi untuk memilih foto dan langsung dikompres otomatis di bawah 500KB
-// Fungsi memilih foto yang sudah di-fix khusus untuk Flutter Web & Mobile
+  // Fungsi memilih foto yang sudah di-fix khusus untuk Flutter Web & Mobile
   Future<void> _pickAndProcessImage() async {
     try {
       final ImagePicker picker = ImagePicker();
       
-      // Untuk Web, biarkan polosan tanpa imageQuality/maxWidth/maxHeight biar gak silent error
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
       );
@@ -66,8 +65,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (image != null) {
         final bytes = await image.readAsBytes();
         
-        // Karena di Web gak bisa dikompres otomatis lewat plugin, kita filter manual ukurannya
-        // Limit Firestore 1 MB (1.048.576 bytes). Kita batasi maks 800 KB biar aman.
         if (bytes.lengthInBytes > 800000) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
@@ -84,7 +81,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
       }
     } catch (e) {
-      // Jika ada error, bakal langsung muncul di browser console & snackbar
       debugPrint("Error pas pilih foto: $e");
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -93,7 +89,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // Helper untuk menentukan ImageProvider (apakah url internet, base64, atau kosong)
+  // Helper untuk menentukan ImageProvider
   ImageProvider? _getAvatarProvider(String? currentAvatarUrl) {
     if (_newBase64Image != null) {
       return MemoryImage(base64Decode(_newBase64Image!));
@@ -116,8 +112,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() => _saving = true);
 
-    // Kirim properti avatarUrl ke UserProvider. 
-    // Catatan: Pastikan fungsi updateProfile di UserProvider lu udah nerima parameter avatarUrl ya!
     final success = await context.read<UserProvider>().updateProfile(
           uid: currentUser.uid,
           nama: _namaController.text.trim(),
@@ -170,7 +164,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               children: [
                 Center(
                   child: GestureDetector(
-                    onTap: _pickAndProcessImage, // Klik avatar juga bisa ganti foto
+                    onTap: _pickAndProcessImage,
                     child: Stack(
                       children: [
                         CircleAvatar(
@@ -213,11 +207,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   validator: ValidatorUtil.validateNotEmpty,
                 ),
                 const SizedBox(height: 14),
+                // 🔥 NIK dibatasi maks 9 angka
                 _buildField(
                   label: 'NIK',
                   controller: _nikController,
                   icon: Icons.badge_outlined,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly, // Hanya terima angka
+                    LengthLimitingTextInputFormatter(9),    // Maksimal 9 karakter
+                  ],
                   validator: ValidatorUtil.validateNik,
                 ),
                 const SizedBox(height: 14),
@@ -273,6 +272,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     required TextEditingController controller,
     required IconData icon,
     TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters, // 🔥 Added parameter
     String? Function(String?)? validator,
   }) {
     return Column(
@@ -286,6 +286,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters, // 🔥 Disalurkan ke TextFormField
           validator: validator,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, size: 20, color: AppColors.primary),
