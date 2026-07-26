@@ -7,8 +7,8 @@ import '../../models/leave_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/leave_provider.dart';
 import '../widgets/confirm_dialog.dart';
-import 'employee_management_screen.dart';
-import 'leave_approval_screen.dart';
+import '../admin/employee_management_screen.dart';
+import '../admin/leave_approval_screen.dart';
 import '../setting/change_password_screen.dart';
 
 class ManagerSettingScreen extends StatefulWidget {
@@ -52,7 +52,7 @@ class _ManagerSettingScreenState extends State<ManagerSettingScreen> {
               context,
               nama: user?.nama ?? '-',
               email: user?.email ?? '-',
-              fotoUrl: user?.fotoUrl,
+              fotoUrl: user?.avatarUrl,
             ),
             const SizedBox(height: 24),
             _sectionLabel('Manajemen Tim'),
