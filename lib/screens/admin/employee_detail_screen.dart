@@ -1,3 +1,5 @@
+import 'dart:convert'; 
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -22,8 +24,6 @@ class EmployeeDetailScreen extends StatefulWidget {
 class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   bool _isDeleting = false;
 
-  // 🔥 Sumber data absensi asli (Firestore), menggantikan field statis
-  // 'ringkasanBulanan' & 'riwayatAbsensi' yang gak pernah benar-benar ada.
   final AttendanceRepository _attendanceRepo = AttendanceRepository();
   bool _isLoadingRiwayat = true;
   List<AttendanceModel> _riwayat = [];
@@ -31,7 +31,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   int _telat = 0;
   int _izin = 0;
 
-  // Variabel untuk mengelola Dropdown Bulan
   String _selectedMonth = '';
   List<String> _availableMonths = [];
 
@@ -57,7 +56,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     _loadDataForMonth(_selectedMonth);
   }
 
-  // 🔥 Ubah label dropdown ("Juli 2026") jadi rentang tanggal 1 bulan penuh
   DateTime _monthLabelToDate(String label) {
     final parts = label.split(' ');
     final monthIndex = _namaBulan.indexOf(parts[0]) + 1;
@@ -105,14 +103,12 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
     }
   }
 
-  // Fungsi untuk menghasilkan daftar bulan (misal: 6 bulan terakhir dari hari ini)
   void _generateMonths() {
     DateTime now = DateTime.now();
     for (int i = 0; i < 6; i++) {
       int month = now.month - i;
       int year = now.year;
 
-      // Penyesuaian jika mundur hingga ke tahun sebelumnya
       if (month <= 0) {
         month += 12;
         year -= 1;
@@ -121,7 +117,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
       String formatted = '${_namaBulan[month - 1]} $year';
       _availableMonths.add(formatted);
     }
-    // Set default ke bulan saat ini
     _selectedMonth = _availableMonths.first;
   }
 
@@ -198,6 +193,23 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Pengecekan foto (support URL HTTP, Base64 String, atau Null)
+    final String? avatarUrl =
+        widget.karyawanData['avatarUrl'] ?? widget.karyawanData['fotoUrl'];
+
+    ImageProvider? avatarProvider;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      if (avatarUrl.startsWith('http')) {
+        avatarProvider = NetworkImage(avatarUrl);
+      } else {
+        try {
+          avatarProvider = MemoryImage(base64Decode(avatarUrl));
+        } catch (_) {
+          avatarProvider = null;
+        }
+      }
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -254,12 +266,18 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                     ),
                     child: Row(
                       children: [
+                        // 🔥 CircleAvatar yang sudah dimiripkan dengan SettingScreen
                         CircleAvatar(
                           radius: 30,
-                          backgroundImage: NetworkImage(
-                            widget.karyawanData['avatarUrl'] ??
-                                'https://via.placeholder.com/150',
-                          ),
+                          backgroundColor: const Color(0xFFE8EAF6),
+                          backgroundImage: avatarProvider,
+                          child: avatarProvider == null
+                              ? const Icon(
+                                  Icons.person_rounded,
+                                  size: 32,
+                                  color: Color(0xFF3F51B5),
+                                )
+                              : null,
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -332,8 +350,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                           color: Colors.black,
                         ),
                       ),
-
-                      // --- PERBAIKAN: Dropdown Dinamis ---
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -367,12 +383,11 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
                             },
                             items: _availableMonths
                                 .map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
-                                  );
-                                })
-                                .toList(),
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
                           ),
                         ),
                       ),
@@ -490,8 +505,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
   }
 
   Widget _buildRiwayatCard(AttendanceModel item) {
-    // item.status disimpan lowercase ('hadir'/'terlambat'/'izin'/'cuti'/
-    // 'lembur'/'absen'); statusLabel mengubahnya ke label tampilan.
     final String status = item.statusLabel;
     Color badgeColor = const Color(0xFFE8F5E9);
     Color textColor = const Color(0xFF2E7D32);
@@ -581,35 +594,6 @@ class _EmployeeDetailScreenState extends State<EmployeeDetailScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  // Catatan: lokasi mentah tersimpan sebagai string "lat,
-                  // lng" di field 'lokasi' pada dokumen Firestore, belum
-                  // dipetakan ke peta di sini — di luar cakupan perbaikan
-                  // saat ini (ringkasan bulanan & riwayat absensi).
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Fitur lihat lokasi segera hadir'),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.location_on_outlined,
-                  size: 16,
-                  color: Color(0xFF0D47A1),
-                ),
-                style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                label: const Text(
-                  'Lihat Lokasi',
-                  style: TextStyle(
-                    color: Color(0xFF0D47A1),
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
           ] else ...[
             Text(
               '"${item.leaveNote ?? '-'}"',

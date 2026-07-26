@@ -1,3 +1,4 @@
+import 'dart:convert'; // 🔥 Diperlukan untuk decode Base64 foto
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'employee_detail_screen.dart';
@@ -16,10 +17,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
   final TextEditingController _searchController = TextEditingController();
   String searchQuery = '';
 
-  // 🔥 Stream dibuat SEKALI di initState, bukan di build().
-  // Kalau dibuat di build(), setiap setState() (misal saat ngetik di search box)
-  // akan membuat instance Stream baru -> StreamBuilder unsubscribe-subscribe ulang
-  // -> sempat balik ke ConnectionState.waiting -> layar kedip nampilin spinner.
   late final Stream<QuerySnapshot> _employeesStream = FirebaseFirestore.instance
       .collection('users')
       .where('role', isEqualTo: 'karyawan')
@@ -41,13 +38,10 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF0D47A1)),
           onPressed: () {
-            // Perbaikan tombol back
             if (Navigator.canPop(context)) {
               Navigator.pop(context);
             } else {
-              Navigator.of(
-                context,
-              ).pop(); // Fallback langsung pop jika routes standar
+              Navigator.of(context).pop();
             }
           },
         ),
@@ -88,10 +82,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _employeesStream,
         builder: (context, snapshot) {
-          // 🔥 Hanya tampilkan spinner full-screen saat BENAR-BENAR belum
-          // pernah ada data sama sekali (initial load). Setelah itu, meskipun
-          // stream reconnect/emit ulang, kita tetap pakai data lama agar
-          // tidak flicker saat searchQuery/selectedFilter berubah.
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -357,8 +347,6 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
                       : () async {
                           setDialogState(() => isDeleting = true);
                           try {
-                            // 🔥 Hapus dari collection 'users' (collection yang benar-benar
-                            // dipakai untuk data karyawan), bukan 'karyawan'.
                             await FirebaseFirestore.instance
                                 .collection('users')
                                 .doc(docId)
@@ -430,6 +418,22 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
       textColor = const Color(0xFFE65100);
     }
 
+    // 🔥 Handle foto (support Network Image, Base64 String, atau Fallback Null)
+    final String? avatarUrl = data['avatarUrl'] ?? data['fotoUrl'];
+
+    ImageProvider? avatarProvider;
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      if (avatarUrl.startsWith('http')) {
+        avatarProvider = NetworkImage(avatarUrl);
+      } else {
+        try {
+          avatarProvider = MemoryImage(base64Decode(avatarUrl));
+        } catch (_) {
+          avatarProvider = null;
+        }
+      }
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -447,9 +451,15 @@ class _EmployeeManagementScreenState extends State<EmployeeManagementScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 26,
-          backgroundImage: NetworkImage(
-            data['avatarUrl'] ?? 'https://via.placeholder.com/150',
-          ),
+          backgroundColor: const Color(0xFFE8EAF6),
+          backgroundImage: avatarProvider,
+          child: avatarProvider == null
+              ? const Icon(
+                  Icons.person_rounded,
+                  size: 28,
+                  color: Color(0xFF0D47A1),
+                )
+              : null,
         ),
         title: Text(
           data['nama'] ?? '-',

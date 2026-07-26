@@ -7,6 +7,7 @@ import '../../core/routes/app_routes.dart';
 import '../../core/utils/validator_util.dart';
 import '../../providers/auth_provider.dart';
 import '../widgets/loading_overlay.dart';
+import '../../core/constants/app_assets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -47,18 +48,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = false);
 
     if (error == null) {
-      // Ambil data user yang baru saja berhasil login
       final user = authProvider.currentUser;
 
       if (user != null) {
         if (user.isAdmin) {
-          // Jika admin, arahkan ke dashboard admin
           Navigator.pushReplacementNamed(context, AppRoutes.adminDashboard);
         } else if (user.isManager) {
-          // Jika manager, arahkan ke dashboard manager
           Navigator.pushReplacementNamed(context, AppRoutes.managerDashboard);
         } else {
-          // Jika karyawan biasa, arahkan ke halaman home utama
           Navigator.pushReplacementNamed(context, AppRoutes.home);
         }
       }
@@ -79,17 +76,30 @@ class _LoginScreenState extends State<LoginScreen> {
       body: LoadingOverlay(
         isLoading: _isLoading,
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const SizedBox(height: 48),
-                _buildLogo(),
-                const SizedBox(height: 32),
-                _buildFormCard(),
-              ],
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight, // Memaksa tinggi minimal selayar full
+                  ),
+                  child: IntrinsicHeight(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center, // Bikin posisi center vertikal
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _buildLogo(),
+                          const SizedBox(height: 32),
+                          _buildFormCard(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -97,41 +107,44 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLogo() {
-    return Column(
-      children: [
-        Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.text_fields_rounded,
-            color: AppColors.primary,
-            size: 48,
+  return Column(
+    children: [
+      Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        // OPSI A: Kurangi padding jadi kecil (misal 8 atau 4)
+        child: Padding(
+          padding: const EdgeInsets.all(8.0), // <-- Ganti dari 16 jadi 8 atau 4
+          child: Image.asset(
+            AppAssets.logo,
+            fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          AppStrings.appName,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-            letterSpacing: 1,
-          ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        AppStrings.appName,
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: AppColors.primary,
+          letterSpacing: 1,
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   Widget _buildFormCard() {
     return Container(
